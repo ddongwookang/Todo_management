@@ -42,7 +42,7 @@ export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
       id: 'important',
       name: '중요',
       icon: Star,
-      count: allTasks.filter(task => task.priority === 'high').length,
+      count: allTasks.filter(task => task.isToday).length,
       color: 'text-yellow-600',
       bgColor: 'bg-yellow-50',
       borderColor: 'border-yellow-200',
