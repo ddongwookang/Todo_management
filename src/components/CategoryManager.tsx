@@ -252,10 +252,16 @@ export default function CategoryManager() {
 
   const handleSaveCategory = () => {
     if (addingCategoryFor && newCategoryName.trim()) {
+      const groupCategories = categories.filter(c => c.groupId === addingCategoryFor);
+      const maxOrder = groupCategories.length > 0 
+        ? Math.max(...groupCategories.map(c => c.order)) 
+        : -1;
+      
       addCategory({
         name: newCategoryName.trim(),
         color: newCategoryColor,
         groupId: addingCategoryFor,
+        order: maxOrder + 1,
       });
       setNewCategoryName('');
       setNewCategoryColor('#3b82f6');
