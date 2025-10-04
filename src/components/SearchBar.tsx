@@ -29,28 +29,28 @@ export default function SearchBar() {
   ).length;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 mb-3">
       {/* Search input */}
-      <div className="flex items-center gap-3">
-        <Search className="w-5 h-5 text-gray-400" />
+      <div className="flex items-center gap-2">
+        <Search className="w-4 h-4 text-gray-400" />
         <input
           type="text"
           value={filter.search || ''}
           onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="업무, 담당자, 내용 검색..."
-          className="flex-1 border-none outline-none placeholder-gray-400 bg-transparent"
+          className="flex-1 border-none outline-none placeholder-gray-400 bg-transparent text-sm py-1"
         />
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className={`p-2 rounded-lg transition-colors ${
+          className={`p-1 rounded-lg transition-colors relative ${
             isExpanded || activeFiltersCount > 0
-              ? 'bg-primary-100 text-primary-600'
+              ? 'bg-blue-100 text-blue-600'
               : 'text-gray-400 hover:text-gray-600'
           }`}
         >
-          <Filter className="w-4 h-4" />
+          <Filter className="w-3.5 h-3.5" />
           {activeFiltersCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-primary-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
               {activeFiltersCount}
             </span>
           )}
@@ -58,9 +58,9 @@ export default function SearchBar() {
         {activeFiltersCount > 0 && (
           <button
             onClick={clearFilter}
-            className="p-2 text-gray-400 hover:text-gray-600"
+            className="p-1 text-gray-400 hover:text-gray-600"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
@@ -79,7 +79,7 @@ export default function SearchBar() {
                   onClick={() => handleAssigneeFilter(currentUser?.id || '')}
                   className={`px-3 py-1 text-sm rounded-full border transition-colors ${
                     filter.assigneeId === currentUser?.id
-                      ? 'bg-primary-100 border-primary-300 text-primary-700'
+                      ? 'bg-blue-100 border-blue-300 text-blue-700'
                       : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -91,7 +91,7 @@ export default function SearchBar() {
                     onClick={() => handleAssigneeFilter(user.id)}
                     className={`px-3 py-1 text-sm rounded-full border transition-colors ${
                       filter.assigneeId === user.id
-                        ? 'bg-primary-100 border-primary-300 text-primary-700'
+                        ? 'bg-blue-100 border-blue-300 text-blue-700'
                         : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -113,7 +113,7 @@ export default function SearchBar() {
                     onClick={() => handleCategoryFilter(category.id)}
                     className={`px-3 py-1 text-sm rounded-full border transition-colors ${
                       filter.categoryId === category.id
-                        ? 'bg-primary-100 border-primary-300 text-primary-700'
+                        ? 'bg-blue-100 border-blue-300 text-blue-700'
                         : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
                     }`}
                   >

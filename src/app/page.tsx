@@ -10,6 +10,7 @@ import SearchBar from '@/components/SearchBar';
 import CategoryManager from '@/components/CategoryManager';
 import TrashView from '@/components/TrashView';
 import PlannedScheduleView from '@/components/PlannedScheduleView';
+import VacationManager from '@/components/VacationManager';
 
 export default function Home() {
   const [activeView, setActiveView] = useState('today');
@@ -23,35 +24,47 @@ export default function Home() {
     getUserTasks,
     currentUser,
     processRecurringTasks,
-    categories
+    categories,
+    groups
   } = useStore();
 
-  // Process recurring tasks on app load
+  // Process recurring tasks on app load and periodically
   useEffect(() => {
     processRecurringTasks();
+    
+    // Check every minute for new recurring tasks
+    const interval = setInterval(() => {
+      processRecurringTasks();
+    }, 60000); // 1 minute
+    
+    return () => clearInterval(interval);
   }, [processRecurringTasks]);
 
   const getCurrentTasks = () => {
+    const filteredTasks = getFilteredTasks();
+    
     switch (activeView) {
       case 'today':
-        return getTodayTasks();
+        return filteredTasks.filter(task => task.isToday && !task.completed);
       case 'important':
-        return getImportantTasks();
+        return filteredTasks.filter(task => task.isImportant && !task.completed);
       case 'all':
-        return getFilteredTasks().filter(task => !task.completed);
+        return filteredTasks.filter(task => !task.completed);
       case 'assigned':
-        return getFilteredTasks().filter(task => !task.completed);
+        return filteredTasks.filter(task => !task.completed);
       case 'completed':
-        return getCompletedTasks();
+        return filteredTasks.filter(task => task.completed);
       case 'my-tasks':
-        return getUserTasks(currentUser?.id || '').filter(task => !task.completed);
+        return filteredTasks.filter(task => 
+          task.assignees.includes(currentUser?.id || '') && !task.completed
+        );
       case 'trash':
         return getDeletedTasks();
       default:
         // Handle category views
         if (activeView.startsWith('category-')) {
           const categoryId = activeView.replace('category-', '');
-          return getFilteredTasks().filter(task => 
+          return filteredTasks.filter(task => 
             task.categoryId === categoryId && !task.completed
           );
         }
@@ -59,8 +72,18 @@ export default function Home() {
     }
   };
 
+  const getCompletedTasksForToday = () => {
+    if (activeView === 'today') {
+      const filteredTasks = getFilteredTasks();
+      return filteredTasks.filter(task => task.isToday && task.completed);
+    }
+    return [];
+  };
+
   const getViewTitle = () => {
     switch (activeView) {
+      case 'vacation':
+        return '휴가 설정';
       case 'today':
         return '오늘 할 일';
       case 'important':
@@ -119,12 +142,12 @@ export default function Home() {
         <Sidebar activeView={activeView} onViewChange={setActiveView} />
 
         {/* Main Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden bg-white">
           <div className="h-full overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
             {/* Header */}
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-semibold text-gray-900">
                   {getViewTitle()}
                 </h1>
@@ -135,10 +158,12 @@ export default function Home() {
             </div>
 
               {/* Task Input - only show for task views */}
-              {!['trash', 'categories'].includes(activeView) && <TaskInput />}
+              {!['trash', 'categories', 'vacation'].includes(activeView) && <TaskInput />}
 
               {/* Content */}
-              {activeView === 'categories' ? (
+              {activeView === 'vacation' ? (
+                <VacationManager />
+              ) : activeView === 'categories' ? (
                 <CategoryManager />
               ) : activeView === 'trash' ? (
                 <TrashView tasks={getCurrentTasks()} />
@@ -148,6 +173,8 @@ export default function Home() {
                 <TaskList 
                   tasks={getCurrentTasks()} 
                   emptyMessage={getEmptyMessage()}
+                  showCompletedSection={activeView === 'today'}
+                  completedTasks={getCompletedTasksForToday()}
                 />
               )}
 

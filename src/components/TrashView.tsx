@@ -43,6 +43,39 @@ export default function TrashView({ tasks }: TrashViewProps) {
         </p>
       </div>
 
+      {/* Bulk actions */}
+      {tasks.length > 0 && (
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-700 font-medium">
+              일괄 작업
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (confirm('모든 업무를 복구하시겠습니까?')) {
+                    tasks.forEach(task => restoreTask(task.id));
+                  }
+                }}
+                className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                모두 복구
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('모든 업무를 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+                    tasks.forEach(task => permanentDeleteTask(task.id));
+                  }
+                }}
+                className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                모두 영구 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {tasks.map((task) => {
           const category = categories.find(c => c.id === task.categoryId);
@@ -140,39 +173,6 @@ export default function TrashView({ tasks }: TrashViewProps) {
           );
         })}
       </div>
-
-      {/* Bulk actions */}
-      {tasks.length > 0 && (
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {tasks.length}개의 삭제된 업무
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  if (confirm('모든 업무를 복구하시겠습니까?')) {
-                    tasks.forEach(task => restoreTask(task.id));
-                  }
-                }}
-                className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                모두 복구
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm('모든 업무를 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-                    tasks.forEach(task => permanentDeleteTask(task.id));
-                  }
-                }}
-                className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                모두 영구 삭제
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

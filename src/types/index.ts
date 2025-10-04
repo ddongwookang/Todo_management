@@ -9,10 +9,25 @@ export interface Category {
   id: string;
   name: string;
   color: string;
+  groupId: string; // 이제 Category가 Group에 속함
   order: number;
 }
 
+export interface Group {
+  id: string;
+  name: string;
+  order: number;
+  categories?: Category[];
+}
+
 export type RecurrenceType = 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly';
+
+export interface SubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+  order: number;
+}
 
 export interface Task {
   id: string;
@@ -20,8 +35,10 @@ export interface Task {
   description?: string;
   completed: boolean;
   isToday: boolean;
+  isImportant?: boolean; // 중요 표시
   assignees: string[]; // User IDs
-  categoryId?: string;
+  assignedTo?: string; // 단일 할당자 (하위 호환성)
+  categoryId?: string; // 카테고리 ID (카테고리는 그룹에 속함)
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
@@ -36,6 +53,12 @@ export interface Task {
   parentTaskId?: string; // for recurring tasks
   isDeleted: boolean;
   deletedAt?: Date;
+  order?: number; // 순서
+  subtasks?: SubTask[]; // 서브태스크
+  pomodoro?: {
+    enabled: boolean;
+    endTime?: Date;
+  };
 }
 
 export interface TaskFilter {
@@ -46,10 +69,21 @@ export interface TaskFilter {
   search?: string;
 }
 
+export interface WorkTimer {
+  status: 'stopped' | 'working' | 'break';
+  workStartTime?: Date;
+  breakStartTime?: Date;
+  totalWorkTime: number; // seconds
+  totalBreakTime: number; // seconds
+}
+
 export interface AppState {
   users: User[];
   categories: Category[];
+  groups: Group[];
   tasks: Task[];
   currentUser: User | null;
   filter: TaskFilter;
+  customEmojis: string[];
+  workTimer: WorkTimer;
 }

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Check, Calendar, Users, Trash2, Edit3, Settings, Star, Clock, MoreVertical } from 'lucide-react';
+import { Check, Calendar, Users, Trash2, Edit3, Settings, Star, Clock, MoreVertical, ChevronDown, ChevronRight, Repeat } from 'lucide-react';
 import { Task } from '@/types';
 import { useStore } from '@/lib/store';
 import TaskDetailSidebar from './TaskDetailSidebar';
+import { format, isToday, isTomorrow } from 'date-fns';
+import { isRedDay, getHolidayName } from '@/lib/holidays';
 
 interface TaskItemProps {
   task: Task;
@@ -15,8 +17,15 @@ export default function TaskItem({ task }: TaskItemProps) {
   const [editTitle, setEditTitle] = useState(task.title);
   const [showDetailSidebar, setShowDetailSidebar] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showSubtasks, setShowSubtasks] = useState(true);
+  const [showDescription, setShowDescription] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [pomodoroTime, setPomodoroTime] = useState('');
+  const [showRecurrenceMenu, setShowRecurrenceMenu] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
   
   const { 
     toggleTaskComplete, 
@@ -31,6 +40,62 @@ export default function TaskItem({ task }: TaskItemProps) {
     .map(id => users.find(u => u.id === id)?.name)
     .filter(Boolean)
     .join(', ');
+
+  const getDateLabel = (date: Date) => {
+    if (isToday(date)) return '오늘';
+    if (isTomorrow(date)) return '내일';
+    const day = date.getDay();
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    return days[day];
+  };
+
+  const formatDateWithWeekday = (date: Date) => {
+    const month = date.getMonth() + 1;
+    const dayNum = date.getDate();
+    const dayOfWeek = getDateLabel(date);
+    return `${month}월 ${dayNum}일 (${dayOfWeek})`;
+  };
+
+  const renderDateWithColor = (date: Date) => {
+    const now = new Date();
+    const isPast = date < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const isHolidayOrWeekend = isRedDay(date);
+    
+    if (isToday(date)) {
+      return <span className="text-blue-600 font-medium">오늘</span>;
+    }
+    if (isTomorrow(date)) {
+      return <span>내일</span>;
+    }
+    
+    const dateText = formatDateWithWeekday(date);
+    const holidayName = getHolidayName(date);
+    
+    if (isPast) {
+      return (
+        <span className="text-red-600">
+          {dateText}
+          {holidayName && ` (${holidayName})`}
+        </span>
+      );
+    }
+    
+    if (isHolidayOrWeekend) {
+      return (
+        <span className="text-yellow-600">
+          {dateText}
+          {holidayName && ` (${holidayName})`}
+        </span>
+      );
+    }
+    
+    return (
+      <span>
+        {dateText}
+        {holidayName && ` (${holidayName})`}
+      </span>
+    );
+  };
 
   const handleSaveEdit = () => {
     if (editTitle.trim()) {
@@ -67,26 +132,73 @@ export default function TaskItem({ task }: TaskItemProps) {
   };
 
   const handleAddToToday = () => {
-    updateTask(task.id, { isToday: true });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    updateTask(task.id, { dueDate: today });
     setShowContextMenu(false);
   };
 
   const handleAddToTomorrow = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
     updateTask(task.id, { dueDate: tomorrow });
+    setShowContextMenu(false);
+  };
+
+  const handleAddToTodayList = () => {
+    // 오늘 할 일 목록에만 추가 (데드라인은 유지)
+    updateTask(task.id, { isToday: true });
     setShowContextMenu(false);
   };
 
   const handleSelectDate = () => {
     setShowContextMenu(false);
-    setShowDetailSidebar(true);
+    setShowDatePicker(true);
+  };
+
+  const handleDateSelect = (date: Date) => {
+    updateTask(task.id, { dueDate: date });
+    setShowDatePicker(false);
   };
 
   const handleDeleteTask = () => {
-    updateTask(task.id, { isDeleted: true });
+    const confirmed = window.confirm(
+      '이 작업을 삭제하시겠습니까?\n\n삭제된 작업은 휴지통으로 이동되며, 7일간 보관됩니다.'
+    );
+    if (confirmed) {
+      updateTask(task.id, { isDeleted: true });
+    }
     setShowContextMenu(false);
   };
+
+  // 캘린더 날짜 생성
+  const generateCalendarDays = () => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startingDayOfWeek = firstDay.getDay();
+    const daysInMonth = lastDay.getDate();
+    
+    const days = [];
+    // 이전 달의 빈 칸
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+    // 현재 달의 날짜
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const changeMonth = (delta: number) => {
+    const newMonth = new Date(calendarMonth);
+    newMonth.setMonth(newMonth.getMonth() + delta);
+    setCalendarMonth(newMonth);
+  };
+
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -102,24 +214,81 @@ export default function TaskItem({ task }: TaskItemProps) {
     }
   }, [showContextMenu]);
 
+  // Close date picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDatePicker]);
+
+  // Pomodoro Timer Update
+  useEffect(() => {
+    if (task.pomodoro?.enabled && task.pomodoro?.endTime) {
+      const updateTimer = () => {
+        const now = new Date();
+        const end = new Date(task.pomodoro!.endTime!);
+        const diff = end.getTime() - now.getTime();
+
+        if (diff <= 0) {
+          setPomodoroTime('완료!');
+          // 타이머 종료 시 비활성화
+          updateTask(task.id, { 
+            pomodoro: { enabled: false, endTime: undefined } 
+          });
+        } else {
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          
+          if (hours > 0) {
+            setPomodoroTime(`${hours}시간 ${minutes}분 ${seconds}초`);
+          } else if (minutes > 0) {
+            setPomodoroTime(`${minutes}분 ${seconds}초`);
+          } else {
+            setPomodoroTime(`${seconds}초`);
+          }
+        }
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setPomodoroTime('');
+    }
+  }, [task.pomodoro, task.id, updateTask]);
+
+  // Handle drag start
+  const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation();
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      type: 'task',
+      taskId: task.id
+    }));
+    e.dataTransfer.effectAllowed = 'move';
+  };
 
   return (
     <>
       <div 
-        className={`bg-white rounded-lg border-0 p-3 hover:bg-gray-50 transition-colors cursor-pointer relative ${
+        draggable
+        onDragStart={handleDragStart}
+        className={`rounded-lg p-2 border border-gray-300 hover:border-gray-400 transition-all cursor-move relative bg-white ${
+          !task.completed ? 'hover:bg-gray-50' : ''
+        } ${
           task.completed ? 'opacity-60' : ''
         }`}
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData('text/plain', JSON.stringify({
-            taskId: task.id,
-            type: 'task'
-          }));
-        }}
         onClick={() => setShowDetailSidebar(true)}
         onContextMenu={handleContextMenu}
       >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {/* Complete checkbox */}
         <button
           onClick={(e) => {
@@ -138,34 +307,51 @@ export default function TaskItem({ task }: TaskItemProps) {
         <div className="flex-1 min-w-0">
           {/* Title */}
           {isEditing ? (
-            <input
+              <input
               type="text"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               onBlur={handleSaveEdit}
               onKeyDown={handleKeyDown}
-              className="w-full text-lg font-medium border-none outline-none bg-gray-50 px-2 py-1 rounded"
+              className="w-full text-sm font-medium border-none outline-none bg-gray-50 px-2 py-1 rounded"
               autoFocus
             />
           ) : (
             <div className="flex items-center justify-between flex-1">
               <div className="flex-1">
                 <h3 
-                  className={`text-base font-normal cursor-pointer hover:text-blue-600 ${
+                  className={`text-sm font-normal cursor-pointer hover:text-blue-600 ${
                     task.completed ? 'line-through text-gray-500' : 'text-gray-900'
                   }`}
-                  onClick={() => setShowDetailSidebar(true)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    setShowDetailSidebar(true);
+                  }}
                 >
                   {task.title}
                 </h3>
                 {task.description && (
-                  <div className="text-xs text-gray-400 mt-1 truncate">
-                    {task.description}
+                  <div className="mt-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDescription(!showDescription);
+                      }}
+                      className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+                    >
+                      <span>{showDescription ? '메모 숨기기' : '메모 보기'}</span>
+                      <span>{showDescription ? '▲' : '▼'}</span>
+                    </button>
+                    {showDescription && (
+                      <div className="text-xs text-gray-600 mt-1 p-2 bg-gray-50 rounded whitespace-pre-wrap break-words">
+                        {task.description}
+                      </div>
+                    )}
                   </div>
                 )}
                 
                 {/* Meta information */}
-                <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
                   {/* Assignees */}
                   {assigneeNames && (
                     <div className="flex items-center gap-1">
@@ -190,32 +376,114 @@ export default function TaskItem({ task }: TaskItemProps) {
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       <span>
-                        {new Date(task.dueDate).toLocaleDateString('ko-KR')}
+                        {renderDateWithColor(new Date(task.dueDate))}
                         {task.dueTime && ` ${task.dueTime}`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Pomodoro Timer */}
+                  {pomodoroTime && (
+                    <div className="flex items-center gap-1 bg-red-50 text-red-600 px-2 py-0.5 rounded font-medium">
+                      <Clock className="w-3 h-3" />
+                      <span>{pomodoroTime}</span>
+                    </div>
+                  )}
+
+                  {/* Recurrence Indicator */}
+                  {task.recurrence && task.recurrence.type !== 'none' && (
+                    <div className="flex items-center gap-1 bg-purple-50 text-purple-600 px-2 py-0.5 rounded font-medium">
+                      <Repeat className="w-3 h-3" />
+                      <span className="text-xs">
+                        {task.recurrence.type === 'daily' ? '매일' :
+                         task.recurrence.type === 'weekly' ? '매주' :
+                         task.recurrence.type === 'monthly' ? '매월' :
+                         task.recurrence.type === 'weekdays' ? '평일' : '반복'}
                       </span>
                     </div>
                   )}
                   
                   {/* Created date */}
-                  {!task.dueDate && (
+                  {!task.dueDate && !task.completed && (
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      <span>{new Date(task.createdAt).toLocaleDateString('ko-KR')}</span>
+                      <span>{renderDateWithColor(new Date(task.createdAt))}</span>
+                    </div>
+                  )}
+
+                  {/* Completed date */}
+                  {task.completed && task.completedAt && (
+                    <div className="flex items-center gap-1 text-green-600">
+                      <Check className="w-3 h-3" />
+                      <span>
+                        {format(new Date(task.completedAt), 'yyyy.MM.dd HH:mm')} 완료
+                      </span>
                     </div>
                   )}
                 </div>
               </div>
               
-              {/* Custom emoji or today star */}
-              <div className="ml-2">
-                <div className="w-4 h-4 text-base">
-                  {task.emoji || (task.isToday ? '⭐' : '')}
-                </div>
+              {/* Important star */}
+              <div className="ml-2 flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateTask(task.id, { isImportant: !task.isImportant });
+                  }}
+                  className="transition-colors"
+                >
+                  <Star 
+                    className={`w-4 h-4 ${
+                      task.isImportant 
+                        ? 'fill-yellow-400 text-yellow-400' 
+                        : 'text-gray-300 hover:text-yellow-400'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Subtasks Section - 노출만 */}
+      {task.subtasks && task.subtasks.length > 0 && (
+        <div className="mt-2 pl-8 space-y-1">
+          {/* Subtasks Toggle */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowSubtasks(!showSubtasks);
+            }}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+          >
+            {showSubtasks ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            단계 ({task.subtasks.filter(st => st.completed).length}/{task.subtasks.length})
+          </button>
+
+          {/* Subtasks List - 읽기 전용 */}
+          {showSubtasks && (
+            <div className="space-y-1">
+              {task.subtasks.map((subtask) => (
+                <div key={subtask.id} className="flex items-center gap-2">
+                  <div
+                    className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center ${
+                      subtask.completed
+                        ? 'bg-blue-500 border-blue-500 text-white'
+                        : 'border-gray-300'
+                    }`}
+                  >
+                    {subtask.completed && <Check className="w-2.5 h-2.5" />}
+                  </div>
+                  <span className={`text-xs flex-1 ${subtask.completed ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                    {subtask.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       </div>
 
@@ -248,6 +516,16 @@ export default function TaskItem({ task }: TaskItemProps) {
           <div className="border-t border-gray-100 my-1"></div>
           
           <button
+            onClick={handleAddToTodayList}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+          >
+            <Calendar className="w-4 h-4 text-blue-500" />
+            오늘 하루에 추가
+          </button>
+          
+          <div className="border-t border-gray-100 my-1"></div>
+          
+          <button
             onClick={handleAddToToday}
             className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
           >
@@ -271,6 +549,17 @@ export default function TaskItem({ task }: TaskItemProps) {
             날짜 선택
           </button>
           
+          <button
+            onClick={() => {
+              setShowRecurrenceMenu(true);
+              setShowContextMenu(false);
+            }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+          >
+            <Repeat className="w-4 h-4" />
+            반복 설정
+          </button>
+          
           <div className="border-t border-gray-100 my-1"></div>
           
           <button
@@ -283,12 +572,190 @@ export default function TaskItem({ task }: TaskItemProps) {
         </div>
       )}
 
+      {/* Custom Calendar Picker */}
+      {showDatePicker && (
+        <div
+          ref={datePickerRef}
+          className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50"
+          style={{
+            left: contextMenuPosition.x,
+            top: contextMenuPosition.y,
+            minWidth: '320px'
+          }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                changeMonth(-1);
+              }}
+              className="p-2 hover:bg-gray-100 rounded"
+            >
+              ◀
+            </button>
+            <span className="font-semibold">
+              {calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                changeMonth(1);
+              }}
+              className="p-2 hover:bg-gray-100 rounded"
+            >
+              ▶
+            </button>
+          </div>
+
+          {/* Weekday Headers */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
+              <div
+                key={i}
+                className={`text-center text-xs font-medium py-1 ${
+                  i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-600'
+                }`}
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar Days */}
+          <div className="grid grid-cols-7 gap-1">
+            {generateCalendarDays().map((date, index) => {
+              const isTodayDate = date && isToday(date);
+              const isPast = date && date < new Date(new Date().setHours(0, 0, 0, 0));
+              const isSunday = date && date.getDay() === 0;
+              const isSaturday = date && date.getDay() === 6;
+              
+              return (
+                <button
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (date && !isPast) {
+                      handleDateSelect(date);
+                    }
+                  }}
+                  disabled={!date || !!isPast}
+                  className={`
+                    aspect-square p-2 text-sm rounded transition-colors
+                    ${!date ? 'invisible' : ''}
+                    ${isPast ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-blue-50'}
+                    ${isTodayDate ? 'bg-blue-500 text-white font-bold hover:bg-blue-600' : ''}
+                    ${!isTodayDate && isSunday && !isPast ? 'text-red-500' : ''}
+                    ${!isTodayDate && isSaturday && !isPast ? 'text-blue-500' : ''}
+                    ${!isTodayDate && !isSunday && !isSaturday && !isPast ? 'text-gray-700' : ''}
+                  `}
+                >
+                  {date ? date.getDate() : ''}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Task Detail Sidebar */}
       <TaskDetailSidebar
         task={task}
         isOpen={showDetailSidebar}
         onClose={() => setShowDetailSidebar(false)}
       />
+
+      {/* Recurrence Menu */}
+      {showRecurrenceMenu && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">반복 설정</h3>
+            
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  updateTask(task.id, { recurrence: { type: 'none' } });
+                  setShowRecurrenceMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
+                  task.recurrence?.type === 'none' || !task.recurrence
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="font-medium">반복 안 함</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  updateTask(task.id, { recurrence: { type: 'daily' } });
+                  setShowRecurrenceMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
+                  task.recurrence?.type === 'daily'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="font-medium">매일</div>
+                <div className="text-sm text-gray-500">매일 반복됩니다</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  updateTask(task.id, { recurrence: { type: 'weekdays' } });
+                  setShowRecurrenceMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
+                  task.recurrence?.type === 'weekdays'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="font-medium">평일</div>
+                <div className="text-sm text-gray-500">월요일 ~ 금요일 반복됩니다</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  updateTask(task.id, { recurrence: { type: 'weekly' } });
+                  setShowRecurrenceMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
+                  task.recurrence?.type === 'weekly'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="font-medium">매주</div>
+                <div className="text-sm text-gray-500">매주 같은 요일에 반복됩니다</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  updateTask(task.id, { recurrence: { type: 'monthly' } });
+                  setShowRecurrenceMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
+                  task.recurrence?.type === 'monthly'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="font-medium">매월</div>
+                <div className="text-sm text-gray-500">매월 같은 날짜에 반복됩니다</div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowRecurrenceMenu(false)}
+              className="mt-6 w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
