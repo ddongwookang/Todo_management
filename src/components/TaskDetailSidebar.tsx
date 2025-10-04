@@ -835,7 +835,7 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
                         ...editedTask.recurrence,
                         daysOfWeek: hasAllWeekdays 
                           ? currentDays.filter(d => !weekdays.includes(d))
-                          : [...new Set([...currentDays, ...weekdays])]
+                          : Array.from(new Set([...currentDays, ...weekdays]))
                       }
                     });
                   }}
