@@ -969,7 +969,17 @@ export const useStore = create<AppStore>()(
         
         // Firestore 실시간 구독
         const unsubscribe = subscribeToTasks(uid, (firestoreTasks) => {
-          set({ tasks: firestoreTasks });
+          // Firestore에서 받은 Task ID 목록
+          const firestoreTaskIds = new Set(firestoreTasks.map(t => t.id));
+          
+          // 현재 로컬 상태 가져오기
+          const currentTasks = get().tasks;
+          
+          // 로컬에만 있는 Task (아직 Firestore에 저장 중)
+          const localOnlyTasks = currentTasks.filter(t => !firestoreTaskIds.has(t.id));
+          
+          // Firestore Task + 로컬 전용 Task 병합
+          set({ tasks: [...firestoreTasks, ...localOnlyTasks] });
         });
         
         return unsubscribe;
