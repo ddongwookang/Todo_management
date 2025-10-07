@@ -1,8 +1,14 @@
 # Nextro Todo App
 
-현대적이고 직관적인 Todo 관리 웹 애플리케이션입니다. Next.js 14, TypeScript, Tailwind CSS, Zustand를 사용하여 구축되었습니다.
+현대적이고 직관적인 Todo 관리 웹 애플리케이션입니다. Next.js 14, TypeScript, Tailwind CSS, Zustand, Firebase를 사용하여 구축되었습니다.
 
 ## 🚀 주요 기능
+
+### 🔐 인증 시스템
+- 🔑 Google 로그인 (Firebase Authentication)
+- 👤 사용자 프로필 표시 (이름, 이메일, 프로필 사진)
+- 🔒 로그인 상태 자동 유지 (새로고침 시에도 유지)
+- 🚪 로그아웃 기능
 
 ### 📋 작업 관리
 - ✅ 작업 추가, 수정, 삭제
@@ -39,9 +45,10 @@
 
 ## 🛠️ 기술 스택
 
-- **Frontend**: Next.js 14, React 18, TypeScript
+- **Frontend**: Next.js 14 (App Router), React 18, TypeScript
 - **Styling**: Tailwind CSS
-- **State Management**: Zustand
+- **State Management**: Zustand (with persist middleware)
+- **Authentication**: Firebase Authentication (Google Sign-In)
 - **Icons**: Lucide React
 - **Date Handling**: date-fns
 - **Drag & Drop**: @dnd-kit
@@ -54,6 +61,24 @@
 ```bash
 npm install
 ```
+
+### Firebase 설정
+
+1. [Firebase Console](https://console.firebase.google.com/)에서 새 프로젝트 생성
+2. Authentication > Sign-in method에서 Google 로그인 활성화
+3. 프로젝트 설정에서 웹 앱 추가 및 구성 정보 확인
+4. 프로젝트 루트에 `.env.local` 파일 생성:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
+```
+
+⚠️ **주의**: `.env.local` 파일은 절대 Git에 커밋하지 마세요! (`.gitignore`에 이미 추가되어 있습니다)
 
 ### 개발 서버 실행
 

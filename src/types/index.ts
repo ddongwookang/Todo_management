@@ -93,6 +93,13 @@ export interface PomodoroSettings {
   defaultQuotes: string[];
 }
 
+export interface FirebaseUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
 export interface AppState {
   users: User[];
   categories: Category[];
@@ -104,4 +111,5 @@ export interface AppState {
   workTimer: WorkTimer;
   history: HistoryAction[];
   pomodoroSettings: PomodoroSettings;
+  firebaseUser: FirebaseUser | null;
 }

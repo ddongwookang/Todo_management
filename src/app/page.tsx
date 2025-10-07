@@ -13,6 +13,7 @@ import PlannedScheduleView from '@/components/PlannedScheduleView';
 import VacationManager from '@/components/VacationManager';
 import PomodoroTimer from '@/components/PomodoroTimer';
 import Toast from '@/components/Toast';
+import GoogleAuthButton from '@/components/GoogleAuthButton';
 
 export default function Home() {
   const [activeView, setActiveView] = useState('today');
@@ -285,7 +286,7 @@ export default function Home() {
                   </h1>
                 </div>
                 <div className="flex items-center gap-3">
-                  {/* Undo 버튼만 표시 */}
+                  {/* Undo 버튼 */}
                   <button
                     onClick={handleUndoClick}
                     disabled={!canUndo()}
@@ -304,6 +305,9 @@ export default function Home() {
                     </svg>
                     <span className="hidden sm:inline">실행 취소</span>
                   </button>
+                  
+                  {/* Google 로그인 버튼 */}
+                  <GoogleAuthButton />
                 </div>
               </div>
             </div>

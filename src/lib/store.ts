@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppState, Task, User, Category, Group, TaskFilter, WorkTimer, PomodoroSettings } from '@/types';
+import { AppState, Task, User, Category, Group, TaskFilter, WorkTimer, PomodoroSettings, FirebaseUser } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { shouldCreateRecurringTask, createRecurringTask } from './recurrence';
 
@@ -52,6 +52,8 @@ interface AppStore extends AppState {
   canUndo: () => boolean;
   // Pomodoro 관련
   updatePomodoroSettings: (settings: Partial<PomodoroSettings>) => void;
+  // Firebase 인증 관련
+  setFirebaseUser: (user: FirebaseUser | null) => void;
 }
 
 const defaultUsers: User[] = [
@@ -167,6 +169,7 @@ export const useStore = create<AppStore>()(
           '포기하지 마세요, 거의 다 왔어요! 🔥',
         ],
       },
+      firebaseUser: null,
 
       addTask: (taskData) => {
         const now = new Date();
@@ -912,6 +915,11 @@ export const useStore = create<AppStore>()(
             ...settings,
           },
         }));
+      },
+
+      // Firebase 사용자 설정
+      setFirebaseUser: (user) => {
+        set({ firebaseUser: user });
       },
     }),
     {
