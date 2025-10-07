@@ -159,8 +159,8 @@ export default function TaskItem({ task, isSelected = false, onTaskClick }: Task
   const handleAddToToday = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // 데드라인을 오늘로 설정 (isToday는 유지)
-    updateTask(task.id, { dueDate: today });
+    // 데드라인을 오늘로 설정
+    updateTask(task.id, { dueDate: today, isToday: true });
     setShowContextMenu(false);
   };
 
