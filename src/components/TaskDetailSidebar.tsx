@@ -88,8 +88,8 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
       const now = new Date();
       
       // dueDate와 dueTime을 조합하여 마감 시간 생성
-      const dueDate = new Date(editedTask.dueDate);
-      const [hours, minutes] = editedTask.dueTime.split(':').map(Number);
+      const dueDate = new Date(editedTask.dueDate!);
+      const [hours, minutes] = editedTask.dueTime!.split(':').map(Number);
       dueDate.setHours(hours, minutes, 0, 0);
       
       const diff = dueDate.getTime() - now.getTime();

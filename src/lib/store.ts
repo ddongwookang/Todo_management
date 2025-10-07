@@ -600,7 +600,7 @@ export const useStore = create<AppStore>()(
           history: [
             ...history,
             {
-              type: 'delete',
+              type: 'delete' as const,
               timestamp: Date.now(),
               data: {
                 tasks: affectedTasks.map(t => ({ ...t })),
@@ -626,7 +626,7 @@ export const useStore = create<AppStore>()(
           history: [
             ...history,
             {
-              type: 'complete',
+              type: 'complete' as const,
               timestamp: Date.now(),
               data: {
                 tasks: affectedTasks.map(t => ({ ...t })),
@@ -654,7 +654,7 @@ export const useStore = create<AppStore>()(
           history: [
             ...history,
             {
-              type: 'update',
+              type: 'update' as const,
               timestamp: Date.now(),
               data: {
                 tasks: affectedTasks.map(t => ({ ...t })),
@@ -680,7 +680,7 @@ export const useStore = create<AppStore>()(
           history: [
             ...history,
             {
-              type: 'update',
+              type: 'update' as const,
               timestamp: Date.now(),
               data: {
                 tasks: affectedTasks.map(t => ({ ...t })),
@@ -706,7 +706,7 @@ export const useStore = create<AppStore>()(
           history: [
             ...history,
             {
-              type: 'bulk',
+              type: 'bulk' as const,
               timestamp: Date.now(),
               data: {
                 tasks: affectedTasks.map(t => ({ ...t })),
@@ -732,7 +732,7 @@ export const useStore = create<AppStore>()(
           history: [
             ...history,
             {
-              type: 'update',
+              type: 'update' as const,
               timestamp: Date.now(),
               data: {
                 tasks: affectedTasks.map(t => ({ ...t })),
