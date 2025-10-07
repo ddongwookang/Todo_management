@@ -65,9 +65,22 @@ npm install
 ### Firebase 설정
 
 1. [Firebase Console](https://console.firebase.google.com/)에서 새 프로젝트 생성
-2. Authentication > Sign-in method에서 Google 로그인 활성화
-3. 프로젝트 설정에서 웹 앱 추가 및 구성 정보 확인
-4. 프로젝트 루트에 `.env.local` 파일 생성:
+2. **Authentication** > Sign-in method에서 Google 로그인 활성화
+3. **Firestore Database** > 데이터베이스 만들기
+   - 프로덕션 모드로 시작
+   - 규칙 설정:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{userId}/tasks/{taskId} {
+         allow read, write: if request.auth != null && request.auth.uid == userId;
+       }
+     }
+   }
+   ```
+4. 프로젝트 설정에서 웹 앱 추가 및 구성 정보 확인
+5. 프로젝트 루트에 `.env.local` 파일 생성:
 
 ```env
 NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key

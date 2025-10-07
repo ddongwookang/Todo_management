@@ -7,28 +7,47 @@ import { useStore } from '@/lib/store';
 import { LogOut, ChevronDown } from 'lucide-react';
 
 export default function GoogleAuthButton() {
-  const { firebaseUser, setFirebaseUser } = useStore();
+  const { firebaseUser, setFirebaseUser, initFirestoreSync, setSyncEnabled } = useStore();
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const unsubscribeFirestoreRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     // Firebase 인증 상태 변경 감지
     const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
       if (user) {
+        // 로그인 시
         setFirebaseUser({
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
         });
+        
+        // Firestore 동기화 시작
+        unsubscribeFirestoreRef.current = initFirestoreSync(user.uid);
       } else {
+        // 로그아웃 시
         setFirebaseUser(null);
+        setSyncEnabled(false);
+        
+        // Firestore 구독 해제
+        if (unsubscribeFirestoreRef.current) {
+          unsubscribeFirestoreRef.current();
+          unsubscribeFirestoreRef.current = null;
+        }
       }
     });
 
-    return () => unsubscribe();
-  }, [setFirebaseUser]);
+    return () => {
+      unsubscribe();
+      // 컴포넌트 언마운트 시 Firestore 구독 해제
+      if (unsubscribeFirestoreRef.current) {
+        unsubscribeFirestoreRef.current();
+      }
+    };
+  }, [setFirebaseUser, initFirestoreSync, setSyncEnabled]);
 
   useEffect(() => {
     // 드롭다운 외부 클릭 감지
