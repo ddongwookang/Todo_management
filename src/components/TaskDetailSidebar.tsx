@@ -356,6 +356,12 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
                 type="text"
                 value={editedTask.title}
                 onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSave();
+                  }
+                }}
                 placeholder="작업 제목을 입력하세요"
                 className="w-full text-lg font-medium border-none outline-none focus:ring-0 p-0"
               />

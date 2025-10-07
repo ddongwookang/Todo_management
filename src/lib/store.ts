@@ -162,6 +162,23 @@ export const useStore = create<AppStore>()(
           updatedAt: now,
           isDeleted: false,
         };
+        
+        const { history } = get();
+        
+        // 히스토리에 생성된 태스크 저장 (Undo 시 삭제)
+        set({
+          history: [
+            ...history,
+            {
+              type: 'update' as const, // 'create' 타입 대신 update 사용
+              timestamp: Date.now(),
+              data: {
+                tasks: [{ ...newTask, isDeleted: true }], // Undo 시 삭제 상태로 복원
+              },
+            },
+          ].slice(-10),
+        });
+        
         set((state) => ({ tasks: [...state.tasks, newTask] }));
       },
 
