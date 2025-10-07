@@ -166,6 +166,24 @@ export const useStore = create<AppStore>()(
       },
 
       updateTask: (id, updates) => {
+        const { tasks, history } = get();
+        const task = tasks.find(t => t.id === id);
+        if (!task) return;
+
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'update' as const,
+              timestamp: Date.now(),
+              data: {
+                tasks: [{ ...task }],
+              },
+            },
+          ].slice(-10),
+        });
+
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === id ? { ...task, ...updates, updatedAt: new Date() } : task
@@ -174,6 +192,24 @@ export const useStore = create<AppStore>()(
       },
 
       deleteTask: (id) => {
+        const { tasks, history } = get();
+        const task = tasks.find(t => t.id === id);
+        if (!task) return;
+
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'delete' as const,
+              timestamp: Date.now(),
+              data: {
+                tasks: [{ ...task }],
+              },
+            },
+          ].slice(-10),
+        });
+
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === id ? { ...task, isDeleted: true, deletedAt: new Date() } : task
@@ -182,11 +218,29 @@ export const useStore = create<AppStore>()(
       },
 
       toggleTaskComplete: (id) => {
-        set((state) => {
-          const task = state.tasks.find(t => t.id === id);
-          if (!task) return state;
+        const { tasks, history } = get();
+        const task = tasks.find(t => t.id === id);
+        if (!task) return;
 
-          const isCompleting = !task.completed;
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'complete' as const,
+              timestamp: Date.now(),
+              data: {
+                tasks: [{ ...task }],
+              },
+            },
+          ].slice(-10),
+        });
+
+        set((state) => {
+          const currentTask = state.tasks.find(t => t.id === id);
+          if (!currentTask) return state;
+
+          const isCompleting = !currentTask.completed;
           
           // 반복 작업을 완료하면 다음 작업 자동 생성
           if (isCompleting && task.recurrence && task.recurrence.type !== 'none') {
