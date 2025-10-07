@@ -7,7 +7,7 @@ import { useStore } from '@/lib/store';
 import { LogOut, ChevronDown } from 'lucide-react';
 
 export default function GoogleAuthButton() {
-  const { firebaseUser, setFirebaseUser, initFirestoreSync, setSyncEnabled } = useStore();
+  const { firebaseUser, setFirebaseUser, initFirestoreSync, setSyncEnabled, setAuthState } = useStore();
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -26,6 +26,11 @@ export default function GoogleAuthButton() {
         });
         
         // 로그인 시
+        setAuthState({
+          loading: false,
+          uid: user.uid,
+        });
+        console.log('✅ [Auth] Auth 상태 설정됨 (loading=false)');
         setFirebaseUser({
           uid: user.uid,
           email: user.email,
@@ -41,6 +46,12 @@ export default function GoogleAuthButton() {
       } else {
         console.log('🚪 [Auth] 로그아웃 처리 중...');
         
+        setAuthState({
+          loading: false,
+          uid: null,
+        });
+        console.log('✅ [Auth] Auth 상태 초기화됨');
+
         // 로그아웃 시
         setFirebaseUser(null);
         setSyncEnabled(false);
@@ -62,7 +73,7 @@ export default function GoogleAuthButton() {
         unsubscribeFirestoreRef.current();
       }
     };
-  }, [setFirebaseUser, initFirestoreSync, setSyncEnabled]);
+  }, [setFirebaseUser, initFirestoreSync, setSyncEnabled, setAuthState]);
 
   useEffect(() => {
     // 드롭다운 외부 클릭 감지

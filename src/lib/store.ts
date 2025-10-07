@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppState, Task, User, Category, Group, TaskFilter, WorkTimer, PomodoroSettings, FirebaseUser } from '@/types';
+import { AppState, Task, User, Category, Group, TaskFilter, WorkTimer, PomodoroSettings, FirebaseUser, AuthState, PendingWrite } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { shouldCreateRecurringTask, createRecurringTask } from './recurrence';
 import {
@@ -10,6 +10,7 @@ import {
   batchUpdateTasksInFirestore,
   subscribeToTasks,
 } from './firestore';
+import { createRepository, DataRepository } from './dataLayer';
 
 interface AppStore extends AppState {
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>) => void;
@@ -66,6 +67,10 @@ interface AppStore extends AppState {
   setTasksFromFirestore: (tasks: Task[]) => void;
   syncEnabled: boolean;
   setSyncEnabled: (enabled: boolean) => void;
+  // Auth 상태 관리
+  setAuthState: (auth: Partial<AuthState>) => void;
+  processPendingWrites: () => Promise<void>;
+  getRepository: () => DataRepository;
 }
 
 const defaultUsers: User[] = [
@@ -183,6 +188,12 @@ export const useStore = create<AppStore>()(
       },
       firebaseUser: null,
       syncEnabled: false,
+      // Auth 상태 (초기에는 로딩 중)
+      auth: {
+        loading: true,
+        uid: null,
+      },
+      pendingWrites: [],
 
       addTask: (taskData) => {
         const now = new Date();
@@ -194,21 +205,20 @@ export const useStore = create<AppStore>()(
           isDeleted: false,
         };
         
-        const { history, firebaseUser, syncEnabled } = get();
+        const { auth, history, pendingWrites } = get();
         
         console.log('🔵 [addTask] 호출됨:', {
           taskTitle: taskData.title,
           taskId: newTask.id,
-          syncEnabled,
-          hasFirebaseUser: !!firebaseUser,
-          uid: firebaseUser?.uid || 'NULL',
+          authLoading: auth.loading,
+          authUid: auth.uid?.slice(0, 6) + '***' || 'NULL',
         });
         
-        // 먼저 로컬 상태에 즉시 추가 (UX 개선)
+        // 먼저 로컬 상태에 즉시 추가 (낙관적 업데이트)
         set((state) => ({ tasks: [...state.tasks, newTask] }));
         console.log('✅ [addTask] 로컬 상태에 추가됨');
         
-        // 히스토리에 생성된 태스크 저장 (Undo 시 삭제)
+        // 히스토리에 저장
         set({
           history: [
             ...history,
@@ -222,32 +232,39 @@ export const useStore = create<AppStore>()(
           ].slice(-10),
         });
         
-        // Firestore에 비동기로 추가 (동기화 활성화 시)
-        if (syncEnabled && firebaseUser && firebaseUser.uid) {
-          console.log('🚀 [addTask] Firestore에 저장 시작...');
-          addTaskToFirestore(firebaseUser.uid, newTask)
-            .then(() => {
-              console.log('✅ [addTask] Firestore 저장 성공!');
-            })
-            .catch((error) => {
-              console.error('❌ [addTask] Firestore 저장 실패:', error);
-              console.error('  - 에러 코드:', error.code);
-              console.error('  - 에러 메시지:', error.message);
-              // 실패 시 로컬 상태에서 제거
-              set((state) => ({
-                tasks: state.tasks.filter((t) => t.id !== newTask.id),
-              }));
-              console.log('🗑️ [addTask] 로컬 상태에서 제거됨');
-            });
-        } else {
-          console.log('⚠️ [addTask] Firestore 저장 건너뜀:', {
-            syncEnabled,
-            hasFirebaseUser: !!firebaseUser,
-            hasUid: !!(firebaseUser?.uid),
+        // Auth 준비 확인
+        if (auth.loading) {
+          console.warn('⚠️ [addTask] Auth 로딩 중, 큐에 추가');
+          set({
+            pendingWrites: [
+              ...pendingWrites,
+              {
+                id: uuidv4(),
+                type: 'add',
+                taskData: newTask,
+                timestamp: Date.now(),
+              },
+            ],
           });
+          return;
         }
+        
+        // Repository를 통해 저장
+        const repo = get().getRepository();
+        
+        repo.addTask(newTask)
+          .then(() => {
+            console.log('✅ [addTask] 저장 성공!');
+          })
+          .catch((error) => {
+            console.error('❌ [addTask] 저장 실패:', error);
+            // 실패 시 로컬 상태에서 제거
+            set((state) => ({
+              tasks: state.tasks.filter((t) => t.id !== newTask.id),
+            }));
+            console.log('🗑️ [addTask] 로컬 상태에서 제거됨');
+          });
       },
-
       updateTask: (id, updates) => {
         const { tasks, history, firebaseUser, syncEnabled } = get();
         const task = tasks.find(t => t.id === id);
@@ -1031,6 +1048,78 @@ export const useStore = create<AppStore>()(
         if (!enabled) {
           set({ tasks: [] });
         }
+      },
+
+      // Auth 상태 관리
+      setAuthState: (authUpdates) => {
+        const currentAuth = get().auth;
+        const newAuth = { ...currentAuth, ...authUpdates };
+        
+        console.log('🔐 [Store] Auth 상태 변경:', {
+          from: { loading: currentAuth.loading, uid: currentAuth.uid?.slice(0, 6) + '***' || 'NULL' },
+          to: { loading: newAuth.loading, uid: newAuth.uid?.slice(0, 6) + '***' || 'NULL' },
+        });
+        
+        set({ auth: newAuth });
+        
+        // uid가 준비되면 대기 중인 쓰기 처리
+        if (!currentAuth.uid && newAuth.uid && !newAuth.loading) {
+          console.log('✅ [Store] UID 준비 완료, 대기 중인 쓰기 처리...');
+          get().processPendingWrites();
+        }
+      },
+
+      // 대기 중인 쓰기 처리
+      processPendingWrites: async () => {
+        const { pendingWrites, auth } = get();
+        
+        if (pendingWrites.length === 0) {
+          console.log('📭 [Store] 대기 중인 쓰기 없음');
+          return;
+        }
+        
+        if (!auth.uid || auth.loading) {
+          console.warn('⚠️ [Store] UID 준비 안됨, 대기 쓰기 처리 불가');
+          return;
+        }
+        
+        console.log('🚀 [Store] 대기 중인 쓰기 처리 시작:', pendingWrites.length, '개');
+        
+        const repo = get().getRepository();
+        
+        for (const write of pendingWrites) {
+          try {
+            switch (write.type) {
+              case 'add':
+                await repo.addTask(write.taskData);
+                break;
+              case 'update':
+                await repo.updateTask(write.taskData.id, write.taskData);
+                break;
+              case 'delete':
+                await repo.deleteTask(write.taskData.id);
+                break;
+            }
+            console.log('✅ [Store] 대기 쓰기 처리 성공:', write.id);
+          } catch (error) {
+            console.error('❌ [Store] 대기 쓰기 처리 실패:', write.id, error);
+          }
+        }
+        
+        // 처리 완료 후 큐 비우기
+        set({ pendingWrites: [] });
+        console.log('✅ [Store] 모든 대기 쓰기 처리 완료');
+      },
+
+      // Repository 팩토리
+      getRepository: () => {
+        const { auth } = get();
+        
+        if (auth.loading) {
+          console.warn('⚠️ [Store] Auth 로딩 중');
+        }
+        
+        return createRepository(auth.uid);
       },
     }),
     {
