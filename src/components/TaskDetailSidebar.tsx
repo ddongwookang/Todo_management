@@ -278,6 +278,7 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
   const handleSetToday = () => {
     const today = new Date();
     const updated = updateRecurrenceForDate(today, editedTask);
+    // 데드라인을 오늘로 설정 (isToday는 유지)
     setEditedTask(updated);
     setShowDatePicker(false);
   };
@@ -286,13 +287,24 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const updated = updateRecurrenceForDate(tomorrow, editedTask);
-    setEditedTask(updated);
+    // 데드라인을 내일로 설정 → isToday를 false로 변경
+    setEditedTask({ ...updated, isToday: false });
     setShowDatePicker(false);
   };
 
   const handleDateSelect = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    
     const updated = updateRecurrenceForDate(date, editedTask);
-    setEditedTask(updated);
+    // 선택한 날짜가 오늘이 아니면 isToday를 false로 설정
+    const isSelectedToday = selectedDate.getTime() === today.getTime();
+    setEditedTask({ 
+      ...updated, 
+      isToday: isSelectedToday ? updated.isToday : false 
+    });
     setShowDatePicker(false);
   };
 
@@ -337,11 +349,11 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
         onClick={onClose}
       />
       
-      {/* Sidebar */}
-      <div className="fixed inset-y-0 right-0 w-80 bg-white shadow-xl z-50 flex flex-col">
+      {/* Sidebar - 모바일에서는 전체 화면, 데스크톱에서는 사이드바 */}
+      <div className="fixed inset-y-0 right-0 w-full sm:w-96 md:w-[28rem] bg-white shadow-xl z-50 flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">작업 세부 정보</h2>
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
+        <h2 className="text-base sm:text-lg font-semibold text-gray-900">작업 세부 정보</h2>
         <button
           onClick={onClose}
           className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
@@ -351,7 +363,7 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6">
         {/* 1. Title with Complete Toggle */}
         <div>
           <div className="flex gap-3 items-start mb-4">

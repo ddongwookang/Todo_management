@@ -14,6 +14,22 @@ import VacationManager from '@/components/VacationManager';
 
 export default function Home() {
   const [activeView, setActiveView] = useState('today');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  // 모바일 감지 및 사이드바 자동 숨김
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
+    };
+    
+    handleResize(); // 초기 실행
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   const { 
     getTodayTasks, 
@@ -42,10 +58,31 @@ export default function Home() {
 
   const getCurrentTasks = () => {
     const filteredTasks = getFilteredTasks();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     switch (activeView) {
       case 'today':
-        return filteredTasks.filter(task => task.isToday && !task.completed);
+        // 오늘 할 일: 엄격한 조건 - A 또는 B만 허용
+        // A: 사용자가 명시적으로 '오늘 하루에 추가'한 태스크 (isToday = true)
+        // B: 데드라인이 정확히 오늘인 태스크 (dueDate == today)
+        return filteredTasks.filter(task => {
+          if (task.completed) return false;
+          
+          // 조건 A: '오늘 하루에 추가'로 명시 추가된 태스크
+          const conditionA = task.isToday === true;
+          
+          // 조건 B: 데드라인이 정확히 오늘인 태스크
+          let conditionB = false;
+          if (task.dueDate) {
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            conditionB = dueDate.getTime() === today.getTime();
+          }
+          
+          // A 또는 B 중 하나라도 만족하면 표시
+          return conditionA || conditionB;
+        });
       case 'important':
         return filteredTasks.filter(task => task.isImportant && !task.completed);
       case 'all':
@@ -137,21 +174,53 @@ export default function Home() {
         </div>
       </div>
     }>
-      <div className="flex h-screen bg-gray-50">
-        {/* Sidebar */}
-        <Sidebar activeView={activeView} onViewChange={setActiveView} />
+      <div className="flex h-screen bg-gray-50 relative">
+        {/* Sidebar - 데스크톱에서는 항상 표시, 모바일에서는 오버레이 */}
+        <div className={`
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          fixed md:static inset-y-0 left-0 z-30
+          transition-transform duration-300 ease-in-out
+        `}>
+          <Sidebar activeView={activeView} onViewChange={(view) => {
+            setActiveView(view);
+            // 모바일에서 메뉴 선택 시 사이드바 자동 닫기
+            if (window.innerWidth < 768) {
+              setSidebarOpen(false);
+            }
+          }} />
+        </div>
+
+        {/* 모바일 오버레이 */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
         {/* Main Content */}
-        <div className="flex-1 overflow-hidden bg-white">
+        <div className="flex-1 overflow-hidden bg-white w-full">
           <div className="h-full overflow-y-auto">
-            <div className="max-w-4xl mx-auto px-6 py-8">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
             {/* Header */}
-            <div className="mb-6">
+            <div className="mb-4 sm:mb-6">
               <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-semibold text-gray-900">
-                  {getViewTitle()}
-                </h1>
-                <div className="text-sm text-gray-500">
+                <div className="flex items-center gap-3">
+                  {/* 햄버거 메뉴 버튼 */}
+                  <button
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    aria-label="메뉴 토글"
+                  >
+                    <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  </button>
+                  <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
+                    {getViewTitle()}
+                  </h1>
+                </div>
+                <div className="text-xs sm:text-sm text-gray-500">
                   {activeView === 'today' && `${getTodayTasks().length}개 목록`}
                 </div>
               </div>

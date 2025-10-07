@@ -175,9 +175,12 @@ export const useStore = create<AppStore>()(
           // 반복 작업을 완료하면 다음 작업 자동 생성
           if (isCompleting && task.recurrence && task.recurrence.type !== 'none') {
             const now = new Date();
-            let nextDate = new Date(now);
+            // 다음 날짜는 현재 태스크의 dueDate를 기준으로 계산
+            const baseDate = task.dueDate ? new Date(task.dueDate) : new Date();
+            baseDate.setHours(0, 0, 0, 0);
+            let nextDate = new Date(baseDate);
             
-            // 다음 날짜 계산
+            // 다음 날짜 계산 (dueDate 기준)
             switch (task.recurrence.type) {
               case 'daily':
                 nextDate.setDate(nextDate.getDate() + 1);
@@ -185,15 +188,19 @@ export const useStore = create<AppStore>()(
               case 'weekdays':
                 // 평일: 월~금
                 nextDate.setDate(nextDate.getDate() + 1);
-                // 금요일이면 월요일로 (3일 추가)
-                if (nextDate.getDay() === 6) { // 토요일
-                  nextDate.setDate(nextDate.getDate() + 2);
-                } else if (nextDate.getDay() === 0) { // 일요일
+                // 주말이면 월요일로
+                while (nextDate.getDay() === 0 || nextDate.getDay() === 6) {
                   nextDate.setDate(nextDate.getDate() + 1);
                 }
                 break;
               case 'weekly':
-                nextDate.setDate(nextDate.getDate() + 7);
+                // weekly인 경우 daysOfWeek 설정이 있으면 사용
+                if (task.recurrence.daysOfWeek && task.recurrence.daysOfWeek.length > 0) {
+                  // 다음 요일 찾기
+                  nextDate.setDate(nextDate.getDate() + 7);
+                } else {
+                  nextDate.setDate(nextDate.getDate() + 7);
+                }
                 break;
               case 'monthly':
                 nextDate.setMonth(nextDate.getMonth() + 1);
@@ -445,7 +452,30 @@ export const useStore = create<AppStore>()(
 
       processRecurringTasks: () => {
         const { tasks } = get();
-        const recurringTasks = tasks.filter((task) => 
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // 1. 날짜가 지난 태스크의 isToday 플래그 제거
+        const updatedTasks = tasks.map((task) => {
+          if (task.isToday && task.dueDate && !task.completed) {
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            
+            // 데드라인이 지났으면 isToday 제거
+            if (dueDate.getTime() < today.getTime()) {
+              return { ...task, isToday: false };
+            }
+          }
+          return task;
+        });
+        
+        // 업데이트된 태스크 적용
+        if (JSON.stringify(tasks) !== JSON.stringify(updatedTasks)) {
+          set({ tasks: updatedTasks });
+        }
+        
+        // 2. 반복 태스크 생성
+        const recurringTasks = updatedTasks.filter((task) => 
           task.recurrence && 
           task.recurrence.type !== 'none' && 
           !task.isDeleted &&
@@ -453,7 +483,7 @@ export const useStore = create<AppStore>()(
         );
 
         recurringTasks.forEach((task) => {
-          if (shouldCreateRecurringTask(task, tasks)) {
+          if (shouldCreateRecurringTask(task, updatedTasks)) {
             const newTask = createRecurringTask(task);
             set((state) => ({ tasks: [...state.tasks, newTask] }));
           }

@@ -134,6 +134,7 @@ export default function TaskItem({ task }: TaskItemProps) {
   const handleAddToToday = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    // 데드라인을 오늘로 설정 (isToday는 유지)
     updateTask(task.id, { dueDate: today });
     setShowContextMenu(false);
   };
@@ -142,13 +143,14 @@ export default function TaskItem({ task }: TaskItemProps) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
-    updateTask(task.id, { dueDate: tomorrow });
+    // 데드라인을 내일로 설정 → isToday를 false로 변경
+    updateTask(task.id, { dueDate: tomorrow, isToday: false });
     setShowContextMenu(false);
   };
 
   const handleAddToTodayList = () => {
-    // 오늘 할 일 목록에만 추가 (데드라인은 유지)
-    updateTask(task.id, { isToday: true });
+    // 오늘 할 일 목록에 추가/제거 토글 (데드라인은 유지)
+    updateTask(task.id, { isToday: !task.isToday });
     setShowContextMenu(false);
   };
 
@@ -158,7 +160,17 @@ export default function TaskItem({ task }: TaskItemProps) {
   };
 
   const handleDateSelect = (date: Date) => {
-    updateTask(task.id, { dueDate: date });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    // 선택한 날짜가 오늘이 아니면 isToday를 false로 설정
+    const isSelectedToday = selectedDate.getTime() === today.getTime();
+    updateTask(task.id, { 
+      dueDate: date, 
+      isToday: isSelectedToday ? task.isToday : false 
+    });
     setShowDatePicker(false);
   };
 
@@ -520,7 +532,7 @@ export default function TaskItem({ task }: TaskItemProps) {
             className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
           >
             <Calendar className="w-4 h-4 text-blue-500" />
-            오늘 하루에 추가
+            {task.isToday ? '나의 하루에서 제거' : '오늘 하루에 추가'}
           </button>
           
           <div className="border-t border-gray-100 my-1"></div>
@@ -664,98 +676,6 @@ export default function TaskItem({ task }: TaskItemProps) {
         isOpen={showDetailSidebar}
         onClose={() => setShowDetailSidebar(false)}
       />
-
-      {/* Recurrence Menu */}
-      {showRecurrenceMenu && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">반복 설정</h3>
-            
-            <div className="space-y-2">
-              <button
-                onClick={() => {
-                  updateTask(task.id, { recurrence: { type: 'none' } });
-                  setShowRecurrenceMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
-                  task.recurrence?.type === 'none' || !task.recurrence
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="font-medium">반복 안 함</div>
-              </button>
-
-              <button
-                onClick={() => {
-                  updateTask(task.id, { recurrence: { type: 'daily' } });
-                  setShowRecurrenceMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
-                  task.recurrence?.type === 'daily'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="font-medium">매일</div>
-                <div className="text-sm text-gray-500">매일 반복됩니다</div>
-              </button>
-
-              <button
-                onClick={() => {
-                  updateTask(task.id, { recurrence: { type: 'weekdays' } });
-                  setShowRecurrenceMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
-                  task.recurrence?.type === 'weekdays'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="font-medium">평일</div>
-                <div className="text-sm text-gray-500">월요일 ~ 금요일 반복됩니다</div>
-              </button>
-
-              <button
-                onClick={() => {
-                  updateTask(task.id, { recurrence: { type: 'weekly' } });
-                  setShowRecurrenceMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
-                  task.recurrence?.type === 'weekly'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="font-medium">매주</div>
-                <div className="text-sm text-gray-500">매주 같은 요일에 반복됩니다</div>
-              </button>
-
-              <button
-                onClick={() => {
-                  updateTask(task.id, { recurrence: { type: 'monthly' } });
-                  setShowRecurrenceMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-lg border-2 transition-colors ${
-                  task.recurrence?.type === 'monthly'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="font-medium">매월</div>
-                <div className="text-sm text-gray-500">매월 같은 날짜에 반복됩니다</div>
-              </button>
-            </div>
-
-            <button
-              onClick={() => setShowRecurrenceMenu(false)}
-              className="mt-6 w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              취소
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
