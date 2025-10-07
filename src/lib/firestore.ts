@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   onSnapshot,
@@ -23,7 +24,6 @@ export const taskToFirestore = (task: Task) => {
     dueDate: task.dueDate ? Timestamp.fromDate(new Date(task.dueDate)) : null,
     pomodoro: task.pomodoro ? {
       ...task.pomodoro,
-      startTime: task.pomodoro.startTime ? Timestamp.fromDate(new Date(task.pomodoro.startTime)) : null,
       endTime: task.pomodoro.endTime ? Timestamp.fromDate(new Date(task.pomodoro.endTime)) : null,
     } : undefined,
   };
@@ -40,18 +40,24 @@ export const firestoreToTask = (id: string, data: any): Task => {
     dueDate: data.dueDate?.toDate() || undefined,
     pomodoro: data.pomodoro ? {
       ...data.pomodoro,
-      startTime: data.pomodoro.startTime?.toDate() || undefined,
       endTime: data.pomodoro.endTime?.toDate() || undefined,
     } : undefined,
   } as Task;
 };
 
 // Firestore에 Task 추가
-export const addTaskToFirestore = async (uid: string, task: Omit<Task, 'id'>) => {
-  const tasksRef = collection(db, `users/${uid}/tasks`);
-  const taskData = taskToFirestore(task as Task);
-  const docRef = await addDoc(tasksRef, taskData);
-  return docRef.id;
+export const addTaskToFirestore = async (uid: string, task: Task) => {
+  // task.id를 Firestore 문서 ID로 사용
+  const taskRef = doc(db, `users/${uid}/tasks`, task.id);
+  
+  // id는 Firestore 문서 ID로 사용하므로 데이터에서 제거
+  const { id, ...taskWithoutId } = task;
+  const taskData = taskToFirestore(taskWithoutId as Task);
+  
+  // setDoc으로 문서 생성 (id는 문서 경로로 사용됨)
+  await setDoc(taskRef, taskData);
+  
+  return task.id;
 };
 
 // Firestore에서 Task 업데이트
@@ -72,7 +78,6 @@ export const updateTaskInFirestore = async (uid: string, taskId: string, updates
   if (updateData.pomodoro) {
     updateData.pomodoro = {
       ...updateData.pomodoro,
-      startTime: updateData.pomodoro.startTime ? Timestamp.fromDate(new Date(updateData.pomodoro.startTime)) : null,
       endTime: updateData.pomodoro.endTime ? Timestamp.fromDate(new Date(updateData.pomodoro.endTime)) : null,
     };
   }
