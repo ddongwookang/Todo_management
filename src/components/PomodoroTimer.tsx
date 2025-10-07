@@ -1,15 +1,30 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Settings } from 'lucide-react';
+import { Play, Pause, RotateCcw, Settings, Eye, EyeOff, Edit2 } from 'lucide-react';
+import { useStore } from '@/lib/store';
 
 export default function PomodoroTimer() {
+  const { pomodoroSettings, updatePomodoroSettings } = useStore();
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [breakMinutes, setBreakMinutes] = useState(5);
   const [isRunning, setIsRunning] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(true);
   const [timeLeft, setTimeLeft] = useState(focusMinutes * 60);
   const [showSettings, setShowSettings] = useState(false);
+  const [isEditingMotivation, setIsEditingMotivation] = useState(false);
+  const [editingText, setEditingText] = useState('');
+  const [currentQuote, setCurrentQuote] = useState('');
+
+  // 초기 랜덤 문구 설정
+  useEffect(() => {
+    if (pomodoroSettings.useRandomQuote && pomodoroSettings.defaultQuotes.length > 0) {
+      const randomIndex = Math.floor(Math.random() * pomodoroSettings.defaultQuotes.length);
+      setCurrentQuote(pomodoroSettings.defaultQuotes[randomIndex]);
+    } else {
+      setCurrentQuote(pomodoroSettings.motivationText);
+    }
+  }, [pomodoroSettings.useRandomQuote, pomodoroSettings.motivationText, pomodoroSettings.defaultQuotes]);
 
   // 타이머 실행
   useEffect(() => {
@@ -61,6 +76,27 @@ export default function PomodoroTimer() {
     setIsRunning(false);
     setTimeLeft(isFocusMode ? focusMinutes * 60 : breakMinutes * 60);
     setShowSettings(false);
+  };
+
+  // 동기부여 멘트 편집 시작
+  const handleStartEditMotivation = () => {
+    setEditingText(pomodoroSettings.motivationText);
+    setIsEditingMotivation(true);
+  };
+
+  // 동기부여 멘트 저장
+  const handleSaveMotivation = () => {
+    if (editingText.trim()) {
+      updatePomodoroSettings({ motivationText: editingText.trim() });
+    }
+    setIsEditingMotivation(false);
+  };
+
+  // 변수 치환 (남은 시간 표시)
+  const getDisplayText = () => {
+    let text = pomodoroSettings.useRandomQuote ? currentQuote : pomodoroSettings.motivationText;
+    text = text.replace('{remain}', formatTime(timeLeft));
+    return text.length > 40 ? text.substring(0, 40) + '...' : text;
   };
 
   return (
@@ -140,6 +176,97 @@ export default function PomodoroTimer() {
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             설정 저장
+          </button>
+        </div>
+      )}
+
+      {/* 동기부여 멘트 */}
+      {pomodoroSettings.showMotivation && (
+        <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-purple-700">💪 동기부여</span>
+              <button
+                onClick={() => updatePomodoroSettings({ showMotivation: false })}
+                className="p-1 hover:bg-white/50 rounded transition-colors"
+                title="멘트 숨기기"
+              >
+                <EyeOff className="w-3 h-3 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex items-center gap-1">
+              <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pomodoroSettings.useRandomQuote}
+                  onChange={(e) => {
+                    updatePomodoroSettings({ useRandomQuote: e.target.checked });
+                    if (e.target.checked && pomodoroSettings.defaultQuotes.length > 0) {
+                      const randomIndex = Math.floor(Math.random() * pomodoroSettings.defaultQuotes.length);
+                      setCurrentQuote(pomodoroSettings.defaultQuotes[randomIndex]);
+                    }
+                  }}
+                  className="w-3 h-3 rounded text-purple-600"
+                />
+                랜덤
+              </label>
+              <button
+                onClick={handleStartEditMotivation}
+                className="p-1 hover:bg-white/50 rounded transition-colors"
+                title="편집"
+              >
+                <Edit2 className="w-3 h-3 text-gray-500" />
+              </button>
+            </div>
+          </div>
+          
+          {isEditingMotivation ? (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveMotivation();
+                  } else if (e.key === 'Escape') {
+                    setIsEditingMotivation(false);
+                  }
+                }}
+                maxLength={40}
+                placeholder="동기부여 될 수 있는 문구를 적어보세요"
+                className="w-full px-3 py-2 text-sm border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                autoFocus
+              />
+              <div className="flex justify-between items-center text-xs text-gray-500">
+                <span>Enter: 저장, Esc: 취소</span>
+                <span>{editingText.length}/40</span>
+              </div>
+            </div>
+          ) : (
+            <p 
+              onClick={handleStartEditMotivation}
+              className="text-base font-semibold text-gray-800 leading-relaxed cursor-pointer hover:text-purple-700 transition-colors"
+              style={{ 
+                fontWeight: 600,
+                textShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+            >
+              {getDisplayText()}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 멘트 보이기 버튼 (숨겨진 상태일 때) */}
+      {!pomodoroSettings.showMotivation && (
+        <div className="mb-4 text-center">
+          <button
+            onClick={() => updatePomodoroSettings({ showMotivation: true })}
+            className="text-xs text-gray-500 hover:text-purple-600 flex items-center gap-1 mx-auto transition-colors"
+          >
+            <Eye className="w-3 h-3" />
+            동기부여 멘트 보이기
           </button>
         </div>
       )}

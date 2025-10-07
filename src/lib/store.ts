@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppState, Task, User, Category, Group, TaskFilter, WorkTimer } from '@/types';
+import { AppState, Task, User, Category, Group, TaskFilter, WorkTimer, PomodoroSettings } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { shouldCreateRecurringTask, createRecurringTask } from './recurrence';
 
@@ -50,6 +50,8 @@ interface AppStore extends AppState {
   // Undo 관련
   undo: () => boolean;
   canUndo: () => boolean;
+  // Pomodoro 관련
+  updatePomodoroSettings: (settings: Partial<PomodoroSettings>) => void;
 }
 
 const defaultUsers: User[] = [
@@ -151,6 +153,19 @@ export const useStore = create<AppStore>()(
         status: 'stopped',
         totalWorkTime: 0,
         totalBreakTime: 0,
+      },
+      pomodoroSettings: {
+        motivationText: '집중하면 할 수 있어요! 💪',
+        showMotivation: true,
+        useRandomQuote: false,
+        defaultQuotes: [
+          '집중하면 할 수 있어요! 💪',
+          '한 걸음씩 나아가고 있어요 🚀',
+          '지금 이 순간에 집중하세요 🎯',
+          '당신은 충분히 잘하고 있어요 ⭐',
+          '작은 진전도 큰 성과입니다 🌟',
+          '포기하지 마세요, 거의 다 왔어요! 🔥',
+        ],
       },
 
       addTask: (taskData) => {
@@ -887,6 +902,16 @@ export const useStore = create<AppStore>()(
         
         // 5초 이내의 액션만 undo 가능
         return now - lastAction.timestamp <= 5000;
+      },
+
+      // Pomodoro 설정 업데이트
+      updatePomodoroSettings: (settings) => {
+        set((state) => ({
+          pomodoroSettings: {
+            ...state.pomodoroSettings,
+            ...settings,
+          },
+        }));
       },
     }),
     {

@@ -86,6 +86,13 @@ export interface HistoryAction {
   };
 }
 
+export interface PomodoroSettings {
+  motivationText: string;
+  showMotivation: boolean;
+  useRandomQuote: boolean;
+  defaultQuotes: string[];
+}
+
 export interface AppState {
   users: User[];
   categories: Category[];
@@ -96,4 +103,5 @@ export interface AppState {
   customEmojis: string[];
   workTimer: WorkTimer;
   history: HistoryAction[];
+  pomodoroSettings: PomodoroSettings;
 }
