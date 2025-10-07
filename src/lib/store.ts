@@ -184,7 +184,7 @@ export const useStore = create<AppStore>()(
       firebaseUser: null,
       syncEnabled: false,
 
-      addTask: async (taskData) => {
+      addTask: (taskData) => {
         const now = new Date();
         const newTask: Task = {
           ...taskData,
@@ -196,15 +196,8 @@ export const useStore = create<AppStore>()(
         
         const { history, firebaseUser, syncEnabled } = get();
         
-        // Firestore에 추가 (동기화 활성화 시)
-        if (syncEnabled && firebaseUser) {
-          try {
-            const firestoreId = await addTaskToFirestore(firebaseUser.uid, newTask);
-            newTask.id = firestoreId; // Firestore ID로 교체
-          } catch (error) {
-            console.error('Failed to add task to Firestore:', error);
-          }
-        }
+        // 먼저 로컬 상태에 즉시 추가 (UX 개선)
+        set((state) => ({ tasks: [...state.tasks, newTask] }));
         
         // 히스토리에 생성된 태스크 저장 (Undo 시 삭제)
         set({
@@ -220,26 +213,22 @@ export const useStore = create<AppStore>()(
           ].slice(-10),
         });
         
-        // 동기화가 비활성화되어 있을 때만 로컬 상태 업데이트
-        // (동기화 활성화 시에는 onSnapshot으로 자동 업데이트)
-        if (!syncEnabled) {
-          set((state) => ({ tasks: [...state.tasks, newTask] }));
+        // Firestore에 비동기로 추가 (동기화 활성화 시)
+        if (syncEnabled && firebaseUser) {
+          addTaskToFirestore(firebaseUser.uid, newTask).catch((error) => {
+            console.error('Failed to add task to Firestore:', error);
+            // 실패 시 로컬 상태에서 제거
+            set((state) => ({
+              tasks: state.tasks.filter((t) => t.id !== newTask.id),
+            }));
+          });
         }
       },
 
-      updateTask: async (id, updates) => {
+      updateTask: (id, updates) => {
         const { tasks, history, firebaseUser, syncEnabled } = get();
         const task = tasks.find(t => t.id === id);
         if (!task) return;
-
-        // Firestore 업데이트
-        if (syncEnabled && firebaseUser) {
-          try {
-            await updateTaskInFirestore(firebaseUser.uid, id, { ...updates, updatedAt: new Date() });
-          } catch (error) {
-            console.error('Failed to update task in Firestore:', error);
-          }
-        }
 
         // 히스토리에 이전 상태 저장
         set({
@@ -255,29 +244,25 @@ export const useStore = create<AppStore>()(
           ].slice(-10),
         });
 
-        // 동기화가 비활성화되어 있을 때만 로컬 상태 업데이트
-        if (!syncEnabled) {
-          set((state) => ({
-            tasks: state.tasks.map((task) =>
-              task.id === id ? { ...task, ...updates, updatedAt: new Date() } : task
-            ),
-          }));
+        // 먼저 로컬 상태 즉시 업데이트 (UX 개선)
+        set((state) => ({
+          tasks: state.tasks.map((task) =>
+            task.id === id ? { ...task, ...updates, updatedAt: new Date() } : task
+          ),
+        }));
+
+        // Firestore 비동기 업데이트
+        if (syncEnabled && firebaseUser) {
+          updateTaskInFirestore(firebaseUser.uid, id, { ...updates, updatedAt: new Date() }).catch((error) => {
+            console.error('Failed to update task in Firestore:', error);
+          });
         }
       },
 
-      deleteTask: async (id) => {
+      deleteTask: (id) => {
         const { tasks, history, firebaseUser, syncEnabled } = get();
         const task = tasks.find(t => t.id === id);
         if (!task) return;
-
-        // Firestore 업데이트 (소프트 삭제)
-        if (syncEnabled && firebaseUser) {
-          try {
-            await updateTaskInFirestore(firebaseUser.uid, id, { isDeleted: true, deletedAt: new Date() });
-          } catch (error) {
-            console.error('Failed to delete task in Firestore:', error);
-          }
-        }
 
         // 히스토리에 이전 상태 저장
         set({
@@ -293,13 +278,18 @@ export const useStore = create<AppStore>()(
           ].slice(-10),
         });
 
-        // 동기화가 비활성화되어 있을 때만 로컬 상태 업데이트
-        if (!syncEnabled) {
-          set((state) => ({
-            tasks: state.tasks.map((task) =>
-              task.id === id ? { ...task, isDeleted: true, deletedAt: new Date() } : task
-            ),
-          }));
+        // 먼저 로컬 상태 즉시 업데이트 (UX 개선)
+        set((state) => ({
+          tasks: state.tasks.map((task) =>
+            task.id === id ? { ...task, isDeleted: true, deletedAt: new Date() } : task
+          ),
+        }));
+
+        // Firestore 비동기 업데이트 (소프트 삭제)
+        if (syncEnabled && firebaseUser) {
+          updateTaskInFirestore(firebaseUser.uid, id, { isDeleted: true, deletedAt: new Date() }).catch((error) => {
+            console.error('Failed to delete task in Firestore:', error);
+          });
         }
       },
 
