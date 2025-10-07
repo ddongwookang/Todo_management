@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import ClientOnly from '@/components/ClientOnly';
 import Sidebar from '@/components/Sidebar';
@@ -38,6 +38,9 @@ export default function Home() {
   
   // History 가져오기
   const history = useStore((state) => state.history);
+  
+  // tasks를 구독하여 실시간 업데이트
+  const tasks = useStore((state) => state.tasks);
   
   // 모바일 감지 및 사이드바 자동 숨김
   useEffect(() => {
@@ -108,9 +111,8 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [processRecurringTasks]);
 
-  // 오늘 할 일 카운트 실시간 계산
-  const getTodayTaskCount = () => {
-    const { tasks } = useStore.getState();
+  // 오늘 할 일 카운트 실시간 계산 (useMemo로 최적화)
+  const todayTaskCount = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -128,7 +130,7 @@ export default function Home() {
       
       return conditionA || conditionB;
     }).length;
-  };
+  }, [tasks]); // tasks가 변경될 때마다 재계산
 
   const getCurrentTasks = () => {
     const filteredTasks = getFilteredTasks();
@@ -371,7 +373,7 @@ export default function Home() {
                   </div>
                   
                   <div className="text-xs sm:text-sm text-gray-500">
-                    {activeView === 'today' && `${getTodayTaskCount()}개 목록`}
+                    {activeView === 'today' && `${todayTaskCount}개 목록`}
                   </div>
                 </div>
               </div>
