@@ -88,7 +88,22 @@ export default function PomodoroTimer() {
               min="1"
               max="120"
               value={focusMinutes}
-              onChange={(e) => setFocusMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => {
+                const val = e.target.value;
+                // 빈 문자열이면 임시로 빈 값 허용
+                if (val === '') {
+                  setFocusMinutes('' as any);
+                } else {
+                  setFocusMinutes(Math.max(1, parseInt(val) || 1));
+                }
+              }}
+              onBlur={(e) => {
+                // 포커스를 잃을 때 빈 값이면 1로 설정
+                if (e.target.value === '') {
+                  setFocusMinutes(1);
+                }
+              }}
+              onFocus={(e) => e.target.select()}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -101,7 +116,22 @@ export default function PomodoroTimer() {
               min="1"
               max="60"
               value={breakMinutes}
-              onChange={(e) => setBreakMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => {
+                const val = e.target.value;
+                // 빈 문자열이면 임시로 빈 값 허용
+                if (val === '') {
+                  setBreakMinutes('' as any);
+                } else {
+                  setBreakMinutes(Math.max(1, parseInt(val) || 1));
+                }
+              }}
+              onBlur={(e) => {
+                // 포커스를 잃을 때 빈 값이면 1로 설정
+                if (e.target.value === '') {
+                  setBreakMinutes(1);
+                }
+              }}
+              onFocus={(e) => e.target.select()}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
