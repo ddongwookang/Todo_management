@@ -17,13 +17,13 @@ interface TaskListProps {
 export default function TaskList({ tasks, title, emptyMessage = "할 일이 없습니다.", showCompletedSection = false, completedTasks = [] }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [lastClickedTaskId, setLastClickedTaskId] = useState<string | null>(null); // Shift 범위 선택용
   const containerRef = useRef<HTMLDivElement>(null);
-  const { reorderTasks } = useStore();
+  const { reorderTasks, selectedTaskIds, setSelectedTasks, toggleTaskSelection, clearSelection } = useStore();
 
   // 미완료 태스크 (tasks는 이미 미완료만 포함)
   const incompleteTasks = [...tasks].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -62,44 +62,32 @@ export default function TaskList({ tasks, title, emptyMessage = "할 일이 없�
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    // 태스크 아이템이 아닌 빈 영역에서만 선택 시작
-    if ((e.target as HTMLElement).closest('[data-task-item]')) {
+    const target = e.target as HTMLElement;
+    
+    // 태스크 아이템, 버튼, 인풋 등을 클릭한 경우
+    if (
+      target.closest('[data-task-item]') ||
+      target.closest('button') ||
+      target.closest('input') ||
+      target.closest('textarea') ||
+      target.closest('select') ||
+      target.closest('a')
+    ) {
       return;
     }
     
+    // 마우스 왼쪽 버튼만 허용
+    if (e.button !== 0) return;
+    
+    // 빈 영역 클릭 시 기존 선택 해제
+    if (selectedTaskIds.length > 0) {
+      clearSelection();
+    }
+    
+    // 드래그 선택 시작
     setIsSelecting(true);
     setSelectionStart({ x: e.clientX, y: e.clientY });
     setSelectionBox({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isSelecting || !selectionStart) return;
-
-    const box = {
-      x: Math.min(e.clientX, selectionStart.x),
-      y: Math.min(e.clientY, selectionStart.y),
-      width: Math.abs(e.clientX - selectionStart.x),
-      height: Math.abs(e.clientY - selectionStart.y)
-    };
-    setSelectionBox(box);
-
-    // 선택 박스와 겹치는 태스크 찾기
-    const selected = new Set<string>();
-    sortedTasks.forEach(task => {
-      const element = document.querySelector(`[data-task-id="${task.id}"]`);
-      if (element) {
-        const rect = element.getBoundingClientRect();
-        if (
-          rect.left < box.x + box.width &&
-          rect.right > box.x &&
-          rect.top < box.y + box.height &&
-          rect.bottom > box.y
-        ) {
-          selected.add(task.id);
-        }
-      }
-    });
-    setSelectedTasks(selected);
   };
 
   const handleMouseUp = () => {
@@ -108,19 +96,89 @@ export default function TaskList({ tasks, title, emptyMessage = "할 일이 없�
     setSelectionBox(null);
   };
 
+  // Shift 범위 선택 핸들러
+  const handleTaskClick = (taskId: string, shiftKey: boolean, ctrlOrMetaKey: boolean) => {
+    if (ctrlOrMetaKey) {
+      // Ctrl/Cmd: 개별 토글
+      toggleTaskSelection(taskId);
+      setLastClickedTaskId(taskId);
+    } else if (shiftKey && lastClickedTaskId) {
+      // Shift: 범위 선택
+      const allTaskIds = sortedTasks.map(t => t.id);
+      const lastIndex = allTaskIds.indexOf(lastClickedTaskId);
+      const currentIndex = allTaskIds.indexOf(taskId);
+      
+      if (lastIndex !== -1 && currentIndex !== -1) {
+        const start = Math.min(lastIndex, currentIndex);
+        const end = Math.max(lastIndex, currentIndex);
+        const rangeIds = allTaskIds.slice(start, end + 1);
+        
+        // 기존 선택 + 범위 선택 (중복 제거)
+        const newSelection = Array.from(new Set([...selectedTaskIds, ...rangeIds]));
+        setSelectedTasks(newSelection);
+      }
+      // Shift 선택 후에는 lastClickedTaskId를 업데이트하지 않음
+    } else {
+      // 일반 클릭: 단일 선택
+      toggleTaskSelection(taskId);
+      setLastClickedTaskId(taskId);
+    }
+  };
+
   useEffect(() => {
     if (isSelecting) {
+      const handleGlobalMouseMove = (e: MouseEvent) => {
+        if (!selectionStart) return;
+
+        const box = {
+          x: Math.min(e.clientX, selectionStart.x),
+          y: Math.min(e.clientY, selectionStart.y),
+          width: Math.abs(e.clientX - selectionStart.x),
+          height: Math.abs(e.clientY - selectionStart.y)
+        };
+        
+        // 최소 5px 이상 드래그해야 선택 박스 표시
+        if (box.width < 5 && box.height < 5) {
+          return;
+        }
+        
+        setSelectionBox(box);
+
+        // 선택 박스와 겹치는 태스크 찾기
+        const selected: string[] = [];
+        sortedTasks.forEach(task => {
+          const element = document.querySelector(`[data-task-id="${task.id}"]`);
+          if (element) {
+            const rect = element.getBoundingClientRect();
+            if (
+              rect.left < box.x + box.width &&
+              rect.right > box.x &&
+              rect.top < box.y + box.height &&
+              rect.bottom > box.y
+            ) {
+              selected.push(task.id);
+            }
+          }
+        });
+        setSelectedTasks(selected);
+      };
+
       const handleGlobalMouseUp = () => handleMouseUp();
+      
+      window.addEventListener('mousemove', handleGlobalMouseMove);
       window.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+      
+      return () => {
+        window.removeEventListener('mousemove', handleGlobalMouseMove);
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
     }
-  }, [isSelecting]);
+  }, [isSelecting, selectionStart, sortedTasks, setSelectedTasks]);
 
   return (
     <div 
       ref={containerRef}
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
       className="relative"
     >
       {title && (
@@ -160,10 +218,14 @@ export default function TaskList({ tasks, title, emptyMessage = "할 일이 없�
                   className={`transition-all ${
                     draggedTaskId === task.id ? 'opacity-40' : ''
                   } ${dragOverIndex === index && draggedTaskId !== task.id ? 'mt-2' : ''} ${
-                    selectedTasks.has(task.id) ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+                    selectedTaskIds.includes(task.id) ? 'ring-2 ring-blue-500 ring-offset-1' : ''
                   }`}
                 >
-                  <TaskItem task={task} />
+                  <TaskItem 
+                    task={task} 
+                    isSelected={selectedTaskIds.includes(task.id)}
+                    onTaskClick={handleTaskClick}
+                  />
                 </div>
               </div>
             ))}
@@ -196,10 +258,14 @@ export default function TaskList({ tasks, title, emptyMessage = "할 일이 없�
                         className={`transition-all ${
                           draggedTaskId === task.id ? 'opacity-40' : ''
                         } ${
-                          selectedTasks.has(task.id) ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+                          selectedTaskIds.includes(task.id) ? 'ring-2 ring-blue-500 ring-offset-1' : ''
                         }`}
                       >
-                        <TaskItem task={task} />
+                        <TaskItem 
+                          task={task} 
+                          isSelected={selectedTaskIds.includes(task.id)}
+                          onTaskClick={handleTaskClick}
+                        />
                       </div>
                     </div>
                   ))}

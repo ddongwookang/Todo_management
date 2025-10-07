@@ -11,10 +11,33 @@ import CategoryManager from '@/components/CategoryManager';
 import TrashView from '@/components/TrashView';
 import PlannedScheduleView from '@/components/PlannedScheduleView';
 import VacationManager from '@/components/VacationManager';
+import Toast from '@/components/Toast';
 
 export default function Home() {
   const [activeView, setActiveView] = useState('today');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showUndoHistory, setShowUndoHistory] = useState(false);
+  
+  // useStore를 먼저 호출하여 undo, canUndo를 사용 가능하게 함
+  const { 
+    getTodayTasks, 
+    getFilteredTasks, 
+    getCompletedTasks,
+    getDeletedTasks,
+    getImportantTasks,
+    getUserTasks,
+    currentUser,
+    processRecurringTasks,
+    categories,
+    groups,
+    undo,
+    canUndo
+  } = useStore();
+  
+  // History 가져오기
+  const history = useStore((state) => state.history);
   
   // 모바일 감지 및 사이드바 자동 숨김
   useEffect(() => {
@@ -31,18 +54,47 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  const { 
-    getTodayTasks, 
-    getFilteredTasks, 
-    getCompletedTasks,
-    getDeletedTasks,
-    getImportantTasks,
-    getUserTasks,
-    currentUser,
-    processRecurringTasks,
-    categories,
-    groups
-  } = useStore();
+  // Ctrl+Z 키보드 단축키 (Undo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Z (Windows/Linux) or Cmd+Z (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        const success = undo();
+        if (success) {
+          setToastMessage('작업이 취소되었습니다');
+          setShowToast(true);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo]);
+  
+  // Undo 버튼 클릭 핸들러
+  const handleUndoClick = () => {
+    const success = undo();
+    if (success) {
+      setToastMessage('작업이 취소되었습니다');
+      setShowToast(true);
+    }
+  };
+  
+  // History 드롭다운 외부 클릭 감지
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showUndoHistory) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.history-dropdown') && !target.closest('.history-button')) {
+          setShowUndoHistory(false);
+        }
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUndoHistory]);
 
   // Process recurring tasks on app load and periodically
   useEffect(() => {
@@ -55,6 +107,28 @@ export default function Home() {
     
     return () => clearInterval(interval);
   }, [processRecurringTasks]);
+
+  // 오늘 할 일 카운트 실시간 계산
+  const getTodayTaskCount = () => {
+    const { tasks } = useStore.getState();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return tasks.filter(task => {
+      if (task.completed || task.isDeleted) return false;
+      
+      const conditionA = task.isToday === true;
+      
+      let conditionB = false;
+      if (task.dueDate) {
+        const dueDate = new Date(task.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        conditionB = dueDate.getTime() === today.getTime();
+      }
+      
+      return conditionA || conditionB;
+    }).length;
+  };
 
   const getCurrentTasks = () => {
     const filteredTasks = getFilteredTasks();
@@ -220,8 +294,85 @@ export default function Home() {
                     {getViewTitle()}
                   </h1>
                 </div>
-                <div className="text-xs sm:text-sm text-gray-500">
-                  {activeView === 'today' && `${getTodayTasks().length}개 목록`}
+                <div className="flex items-center gap-3">
+                  {/* Undo 버튼 그룹 */}
+                  <div className="flex items-center gap-1 relative">
+                    <button
+                      onClick={handleUndoClick}
+                      disabled={!canUndo()}
+                      className={`
+                        px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-medium
+                        transition-all duration-200
+                        ${canUndo() 
+                          ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 active:scale-95' 
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }
+                      `}
+                      title="Ctrl+Z"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                      </svg>
+                      <span className="hidden sm:inline">실행 취소</span>
+                    </button>
+                    
+                    {/* History 버튼 */}
+                    {history.length > 0 && (
+                      <button
+                        onClick={() => setShowUndoHistory(!showUndoHistory)}
+                        className="history-button px-2 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+                        title="작업 기록"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </button>
+                    )}
+                    
+                    {/* History 드롭다운 */}
+                    {showUndoHistory && history.length > 0 && (
+                      <div className="history-dropdown absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                        <div className="p-3 border-b border-gray-100">
+                          <h3 className="text-sm font-semibold text-gray-900">최근 작업 내역</h3>
+                          <p className="text-xs text-gray-500 mt-1">{history.length}개의 취소 가능한 작업</p>
+                        </div>
+                        <div className="p-2">
+                          {history.slice().reverse().map((item, index) => {
+                            const timeAgo = Math.floor((Date.now() - item.timestamp) / 1000);
+                            const canUndoThis = timeAgo <= 5;
+                            
+                            return (
+                              <div
+                                key={index}
+                                className={`p-2 rounded text-xs mb-1 ${
+                                  canUndoThis ? 'bg-blue-50 text-blue-900' : 'bg-gray-50 text-gray-500'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium">
+                                    {item.type === 'delete' ? '🗑️ 삭제' :
+                                     item.type === 'complete' ? '✓ 완료' :
+                                     item.type === 'update' ? '✏️ 수정' :
+                                     '📦 일괄 작업'}
+                                  </span>
+                                  <span className={canUndoThis ? 'text-blue-600' : 'text-gray-400'}>
+                                    {timeAgo}초 전
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-gray-600">
+                                  {item.data.tasks?.length || 0}개 항목
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="text-xs sm:text-sm text-gray-500">
+                    {activeView === 'today' && `${getTodayTaskCount()}개 목록`}
+                  </div>
                 </div>
               </div>
             </div>
@@ -251,6 +402,13 @@ export default function Home() {
           </div>
         </div>
       </div>
+      
+      {/* Toast 알림 */}
+      <Toast 
+        message={toastMessage}
+        isVisible={showToast}
+        onClose={() => setShowToast(false)}
+      />
     </ClientOnly>
   );
 }

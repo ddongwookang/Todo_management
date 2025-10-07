@@ -37,12 +37,20 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
   const [remainingTime, setRemainingTime] = useState('');
-  const [customMinutes, setCustomMinutes] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [showTimeInput, setShowTimeInput] = useState(false); // 시간 입력 토글용
   
   const { updateTask, toggleTaskComplete, users, categories, customEmojis, addCustomEmoji } = useStore();
+
+  // 시간 포맷 함수 (24시간 → 12시간 + 오전/오후)
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours < 12 ? '오전' : '오후';
+    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
 
   // DnD Kit sensors
   const sensors = useSensors(
@@ -69,33 +77,38 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // 뽀모도로 타이머 업데이트
+  // 뽀모도로 타이머 업데이트 (마감시간 기반)
   useEffect(() => {
-    if (!editedTask.pomodoro?.enabled || !editedTask.pomodoro?.endTime) {
+    if (!editedTask.pomodoro?.enabled || !editedTask.dueDate || !editedTask.dueTime) {
       setRemainingTime('');
       return;
     }
 
     const interval = setInterval(() => {
       const now = new Date();
-      const end = new Date(editedTask.pomodoro!.endTime!);
-      const diff = end.getTime() - now.getTime();
+      
+      // dueDate와 dueTime을 조합하여 마감 시간 생성
+      const dueDate = new Date(editedTask.dueDate);
+      const [hours, minutes] = editedTask.dueTime.split(':').map(Number);
+      dueDate.setHours(hours, minutes, 0, 0);
+      
+      const diff = dueDate.getTime() - now.getTime();
 
       if (diff <= 0) {
-        setRemainingTime('00시간 00분 00초');
+        setRemainingTime('마감 시간 도달!');
         clearInterval(interval);
         return;
       }
 
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      const totalHours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
 
-      setRemainingTime(`${String(hours).padStart(2, '0')}시간 ${String(minutes).padStart(2, '0')}분 ${String(seconds).padStart(2, '0')}초`);
+      setRemainingTime(`${String(totalHours).padStart(2, '0')}시간 ${String(mins).padStart(2, '0')}분 ${String(secs).padStart(2, '0')}초`);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [editedTask.pomodoro]);
+  }, [editedTask.pomodoro, editedTask.dueDate, editedTask.dueTime]);
 
   if (!isOpen) return null;
 
@@ -204,59 +217,13 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
 
   const handleTogglePomodoro = () => {
     const newPomodoro = {
-      enabled: !editedTask.pomodoro?.enabled,
-      endTime: editedTask.pomodoro?.endTime
+      enabled: !editedTask.pomodoro?.enabled
     };
     
     // 즉시 store에 저장
     updateTask(task.id, { pomodoro: newPomodoro });
   };
 
-  const handleSetPomodoroMinutes = (minutes: number) => {
-    const endTime = new Date();
-    endTime.setMinutes(endTime.getMinutes() + minutes);
-    
-    const newPomodoro = {
-      enabled: true,
-      endTime
-    };
-    
-    // 즉시 store에 저장
-    updateTask(task.id, { pomodoro: newPomodoro });
-    setCustomMinutes('');
-  };
-
-  const handleSetCustomPomodoroTime = () => {
-    const minutes = parseInt(customMinutes);
-    if (isNaN(minutes) || minutes <= 0) return;
-    
-    handleSetPomodoroMinutes(minutes);
-  };
-
-  // 타이머에 시간 추가
-  const handleAddPomodoroTime = (minutes: number) => {
-    if (!editedTask.pomodoro?.endTime) return;
-    
-    const currentEndTime = new Date(editedTask.pomodoro.endTime);
-    currentEndTime.setMinutes(currentEndTime.getMinutes() + minutes);
-    
-    updateTask(task.id, { 
-      pomodoro: { 
-        enabled: true, 
-        endTime: currentEndTime 
-      } 
-    });
-  };
-
-  // 타이머 제거
-  const handleRemovePomodoro = () => {
-    updateTask(task.id, { 
-      pomodoro: { 
-        enabled: false, 
-        endTime: undefined 
-      } 
-    });
-  };
 
   // 날짜 설정 함수들
   const updateRecurrenceForDate = (date: Date, currentTask: Task) => {
@@ -456,15 +423,9 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
                   // form의 onSubmit이 자동으로 처리함
                 }
               }}
-              placeholder="단계 추가"
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="단계 추가 (Enter로 추가)"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
-            >
-              추가
-            </button>
           </form>
         </div>
 
@@ -514,18 +475,41 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
                   제거
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-gray-400" />
-                <input
-                  type="time"
-                  value={editedTask.dueTime || ''}
-                  onChange={(e) => setEditedTask({ 
-                    ...editedTask, 
-                    dueTime: e.target.value || undefined 
-                  })}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              
+              {/* 마감시간 설정 토글 버튼 */}
+              {!showTimeInput ? (
+                <button
+                  onClick={() => setShowTimeInput(true)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-left text-gray-600 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  {editedTask.dueTime ? formatTime(editedTask.dueTime) : '마감시간 설정'}
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <input
+                      type="time"
+                      value={editedTask.dueTime || ''}
+                      onChange={(e) => setEditedTask({ 
+                        ...editedTask, 
+                        dueTime: e.target.value || undefined 
+                      })}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <button
+                      onClick={() => {
+                        setEditedTask({ ...editedTask, dueTime: undefined });
+                        setShowTimeInput(false);
+                      }}
+                      className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-300"
+                    >
+                      제거
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -620,7 +604,30 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
           )}
         </div>
 
-        {/* 4. Description */}
+        {/* 4. Pomodoro Countdown (마감시간 기반) */}
+        {editedTask.dueDate && editedTask.dueTime && (
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+              <input
+                type="checkbox"
+                checked={editedTask.pomodoro?.enabled || false}
+                onChange={handleTogglePomodoro}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+              <Timer className="w-4 h-4" />
+              뽀모도로 타이머 (마감까지 카운트다운)
+            </label>
+            
+            {editedTask.pomodoro?.enabled && remainingTime && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-center">
+                <div className="text-sm text-red-600 mb-1">마감까지</div>
+                <div className="text-lg font-semibold text-red-700">{remainingTime}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 5. Description */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             메모
@@ -632,114 +639,6 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="메모 추가..."
           />
-        </div>
-
-        {/* 5. Pomodoro Timer */}
-        <div>
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-            <input
-              type="checkbox"
-              checked={editedTask.pomodoro?.enabled || false}
-              onChange={handleTogglePomodoro}
-              className="w-4 h-4 text-blue-600 rounded"
-            />
-            <Timer className="w-4 h-4" />
-            뽀모도로 타이머
-          </label>
-          
-          {editedTask.pomodoro?.enabled && (
-            <div className="space-y-3">
-              {/* 타이머가 이미 설정되어 있으면 시간 조절 버튼 표시 */}
-              {editedTask.pomodoro?.endTime ? (
-                <div className="space-y-3">
-                  {/* 남은 시간 표시 */}
-                  {remainingTime && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                      <div className="text-sm text-blue-600 mb-1">남은 시간</div>
-                      <div className="text-lg font-semibold text-blue-700">{remainingTime}</div>
-                    </div>
-                  )}
-                  
-                  {/* 시간 추가/제거 버튼 */}
-                  <div className="space-y-2">
-                    <div className="text-xs text-gray-600 mb-1">시간 추가</div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleAddPomodoroTime(5)}
-                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors"
-                      >
-                        +5분
-                      </button>
-                      <button
-                        onClick={() => handleAddPomodoroTime(10)}
-                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors"
-                      >
-                        +10분
-                      </button>
-                      <button
-                        onClick={() => handleAddPomodoroTime(30)}
-                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors"
-                      >
-                        +30분
-                      </button>
-                    </div>
-                    
-                    {/* 타이머 제거 버튼 */}
-                    <button
-                      onClick={handleRemovePomodoro}
-                      className="w-full px-3 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-                    >
-                      타이머 종료
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* 타이머 설정 */
-                <div className="space-y-2">
-                  <div className="text-xs text-gray-600 mb-1">타이머 설정 (분)</div>
-                  <div className="flex gap-2 mb-2">
-                    <button
-                      onClick={() => handleSetPomodoroMinutes(25)}
-                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300"
-                    >
-                      25분
-                    </button>
-                    <button
-                      onClick={() => handleSetPomodoroMinutes(45)}
-                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300"
-                    >
-                      45분
-                    </button>
-                    <button
-                      onClick={() => handleSetPomodoroMinutes(60)}
-                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300"
-                    >
-                      60분
-                    </button>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={customMinutes}
-                      onChange={(e) => setCustomMinutes(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSetCustomPomodoroTime()}
-                      placeholder="커스텀 (분)"
-                      step="1"
-                      min="1"
-                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={handleSetCustomPomodoroTime}
-                      className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                    >
-                      시작
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* 6. Assignees */}

@@ -36,6 +36,20 @@ interface AppStore extends AppState {
   startBreak: () => void;
   endWork: () => void;
   updateWorkTimer: () => void;
+  // 다중 선택 관련
+  selectedTaskIds: string[];
+  toggleTaskSelection: (id: string) => void;
+  setSelectedTasks: (ids: string[]) => void;
+  clearSelection: () => void;
+  bulkDeleteTasks: (ids: string[]) => void;
+  bulkCompleteTasks: (ids: string[]) => void;
+  bulkAddToToday: (ids: string[]) => void;
+  bulkMarkImportant: (ids: string[]) => void;
+  bulkMoveToCategory: (ids: string[], categoryId: string) => void;
+  bulkSetDueDate: (ids: string[], dueDate: Date) => void;
+  // Undo 관련
+  undo: () => boolean;
+  canUndo: () => boolean;
 }
 
 const defaultUsers: User[] = [
@@ -60,6 +74,8 @@ export const useStore = create<AppStore>()(
       users: defaultUsers,
       groups: defaultGroups,
       categories: defaultCategories,
+      selectedTaskIds: [], // 선택된 태스크 ID 배열
+      history: [], // Undo 히스토리
       tasks: [
         {
           id: '1',
@@ -556,6 +572,250 @@ export const useStore = create<AppStore>()(
         // 실제로 상태를 변경하지 않고, 리렌더링만 트리거
         const { workTimer } = get();
         set({ workTimer: { ...workTimer } });
+      },
+
+      // 다중 선택 관련 함수들
+      toggleTaskSelection: (id) => {
+        set((state) => ({
+          selectedTaskIds: state.selectedTaskIds.includes(id)
+            ? state.selectedTaskIds.filter(taskId => taskId !== id)
+            : [...state.selectedTaskIds, id]
+        }));
+      },
+
+      setSelectedTasks: (ids) => {
+        set({ selectedTaskIds: ids });
+      },
+
+      clearSelection: () => {
+        set({ selectedTaskIds: [] });
+      },
+
+      bulkDeleteTasks: (ids) => {
+        const { tasks, history } = get();
+        const affectedTasks = tasks.filter(task => ids.includes(task.id));
+        
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'delete',
+              timestamp: Date.now(),
+              data: {
+                tasks: affectedTasks.map(t => ({ ...t })),
+              },
+            },
+          ].slice(-10), // 최근 10개만 유지
+        });
+        
+        set((state) => ({
+          tasks: state.tasks.map(task =>
+            ids.includes(task.id) ? { ...task, isDeleted: true, deletedAt: new Date() } : task
+          ),
+          selectedTaskIds: [], // 삭제 후 선택 해제
+        }));
+      },
+
+      bulkCompleteTasks: (ids) => {
+        const { tasks, history } = get();
+        const affectedTasks = tasks.filter(task => ids.includes(task.id));
+        
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'complete',
+              timestamp: Date.now(),
+              data: {
+                tasks: affectedTasks.map(t => ({ ...t })),
+              },
+            },
+          ].slice(-10), // 최근 10개만 유지
+        });
+        
+        set((state) => ({
+          tasks: state.tasks.map(task =>
+            ids.includes(task.id) 
+              ? { ...task, completed: true, completedAt: new Date(), isToday: false } 
+              : task
+          ),
+          selectedTaskIds: [], // 완료 후 선택 해제
+        }));
+      },
+
+      bulkAddToToday: (ids) => {
+        const { tasks, history } = get();
+        const affectedTasks = tasks.filter(task => ids.includes(task.id));
+        
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'update',
+              timestamp: Date.now(),
+              data: {
+                tasks: affectedTasks.map(t => ({ ...t })),
+              },
+            },
+          ].slice(-10), // 최근 10개만 유지
+        });
+        
+        set((state) => ({
+          tasks: state.tasks.map(task =>
+            ids.includes(task.id) ? { ...task, isToday: true } : task
+          ),
+          selectedTaskIds: [], // 추가 후 선택 해제
+        }));
+      },
+
+      bulkMarkImportant: (ids) => {
+        const { tasks, history } = get();
+        const affectedTasks = tasks.filter(task => ids.includes(task.id));
+        
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'update',
+              timestamp: Date.now(),
+              data: {
+                tasks: affectedTasks.map(t => ({ ...t })),
+              },
+            },
+          ].slice(-10), // 최근 10개만 유지
+        });
+        
+        set((state) => ({
+          tasks: state.tasks.map(task =>
+            ids.includes(task.id) ? { ...task, isImportant: !task.isImportant } : task
+          ),
+          selectedTaskIds: [], // 변경 후 선택 해제
+        }));
+      },
+
+      bulkMoveToCategory: (ids, categoryId) => {
+        const { tasks, history } = get();
+        const affectedTasks = tasks.filter(task => ids.includes(task.id));
+        
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'bulk',
+              timestamp: Date.now(),
+              data: {
+                tasks: affectedTasks.map(t => ({ ...t })),
+              },
+            },
+          ].slice(-10), // 최근 10개만 유지
+        });
+        
+        set((state) => ({
+          tasks: state.tasks.map(task =>
+            ids.includes(task.id) ? { ...task, categoryId } : task
+          ),
+          selectedTaskIds: [], // 이동 후 선택 해제
+        }));
+      },
+
+      bulkSetDueDate: (ids, dueDate) => {
+        const { tasks, history } = get();
+        const affectedTasks = tasks.filter(task => ids.includes(task.id));
+        
+        // 히스토리에 이전 상태 저장
+        set({
+          history: [
+            ...history,
+            {
+              type: 'update',
+              timestamp: Date.now(),
+              data: {
+                tasks: affectedTasks.map(t => ({ ...t })),
+              },
+            },
+          ].slice(-10), // 최근 10개만 유지
+        });
+        
+        // 오늘인지 확인
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const selectedDate = new Date(dueDate);
+        selectedDate.setHours(0, 0, 0, 0);
+        const isSelectedToday = selectedDate.getTime() === today.getTime();
+        
+        set((state) => ({
+          tasks: state.tasks.map(task =>
+            ids.includes(task.id) ? { 
+              ...task, 
+              dueDate,
+              isToday: isSelectedToday ? task.isToday : false // 오늘이 아니면 isToday false
+            } : task
+          ),
+          selectedTaskIds: [], // 변경 후 선택 해제
+        }));
+      },
+
+      // Undo 함수
+      undo: () => {
+        const { history, tasks } = get();
+        
+        if (history.length === 0) {
+          return false;
+        }
+        
+        const lastAction = history[history.length - 1];
+        const now = Date.now();
+        
+        // 5초 이내의 액션만 undo 가능
+        if (now - lastAction.timestamp > 5000) {
+          // 오래된 히스토리 제거
+          set({ history: [] });
+          return false;
+        }
+        
+        // 이전 상태로 복원
+        if (lastAction.data.tasks) {
+          const savedTasks = lastAction.data.tasks;
+          const savedTaskIds = savedTasks.map(t => t.id);
+          
+          // 기존 tasks 배열에서 영향받은 태스크를 찾아서 복원
+          let updatedTasks = tasks.map(task => {
+            const saved = savedTasks.find(t => t.id === task.id);
+            return saved ? { ...saved } : task;
+          });
+          
+          // 삭제된 태스크의 경우 배열에 다시 추가
+          savedTasks.forEach(savedTask => {
+            if (!tasks.find(t => t.id === savedTask.id)) {
+              updatedTasks.push({ ...savedTask });
+            }
+          });
+          
+          set({
+            tasks: updatedTasks,
+            history: history.slice(0, -1), // 마지막 히스토리 제거
+          });
+          
+          return true;
+        }
+        
+        return false;
+      },
+
+      canUndo: () => {
+        const { history } = get();
+        if (history.length === 0) return false;
+        
+        const lastAction = history[history.length - 1];
+        const now = Date.now();
+        
+        // 5초 이내의 액션만 undo 가능
+        return now - lastAction.timestamp <= 5000;
       },
     }),
     {

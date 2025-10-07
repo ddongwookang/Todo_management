@@ -77,6 +77,15 @@ export interface WorkTimer {
   totalBreakTime: number; // seconds
 }
 
+export interface HistoryAction {
+  type: 'delete' | 'complete' | 'update' | 'bulk';
+  timestamp: number;
+  data: {
+    tasks?: Task[];
+    previousState?: Partial<Task>[];
+  };
+}
+
 export interface AppState {
   users: User[];
   categories: Category[];
@@ -86,4 +95,5 @@ export interface AppState {
   filter: TaskFilter;
   customEmojis: string[];
   workTimer: WorkTimer;
+  history: HistoryAction[];
 }

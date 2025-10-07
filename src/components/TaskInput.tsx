@@ -9,6 +9,7 @@ export default function TaskInput() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const addTask = useStore((state) => state.addTask);
   const currentUser = useStore((state) => state.currentUser);
+  const clearSelection = useStore((state) => state.clearSelection);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +42,7 @@ export default function TaskInput() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            onFocus={() => clearSelection()} // 입력 필드 클릭 시 선택 해제
             placeholder="작업 추가"
             className="flex-1 text-sm sm:text-base border-none outline-none placeholder-gray-400 bg-transparent py-2 min-w-0"
             disabled={isSubmitting}

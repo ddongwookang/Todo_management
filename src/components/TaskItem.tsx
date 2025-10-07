@@ -10,11 +10,11 @@ import { isRedDay, getHolidayName } from '@/lib/holidays';
 
 interface TaskItemProps {
   task: Task;
+  isSelected?: boolean;
+  onTaskClick?: (taskId: string, shiftKey: boolean, ctrlOrMetaKey: boolean) => void;
 }
 
-export default function TaskItem({ task }: TaskItemProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(task.title);
+export default function TaskItem({ task, isSelected = false, onTaskClick }: TaskItemProps) {
   const [showDetailSidebar, setShowDetailSidebar] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -24,15 +24,26 @@ export default function TaskItem({ task }: TaskItemProps) {
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [pomodoroTime, setPomodoroTime] = useState('');
   const [showRecurrenceMenu, setShowRecurrenceMenu] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(task.title);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   
   const { 
     toggleTaskComplete, 
     updateTask, 
     deleteTask,
     users,
-    categories 
+    categories,
+    selectedTaskIds,
+    toggleTaskSelection,
+    clearSelection,
+    bulkDeleteTasks,
+    bulkCompleteTasks,
+    bulkAddToToday,
+    bulkMarkImportant,
+    bulkSetDueDate
   } = useStore();
 
   const category = categories.find(c => c.id === task.categoryId);
@@ -40,6 +51,14 @@ export default function TaskItem({ task }: TaskItemProps) {
     .map(id => users.find(u => u.id === id)?.name)
     .filter(Boolean)
     .join(', ');
+
+  // 시간 포맷 함수 (24시간 → 12시간 + 오전/오후)
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours < 12 ? '오전' : '오후';
+    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
 
   const getDateLabel = (date: Date) => {
     if (isToday(date)) return '오늘';
@@ -97,27 +116,33 @@ export default function TaskItem({ task }: TaskItemProps) {
     );
   };
 
-  const handleSaveEdit = () => {
-    if (editTitle.trim()) {
-      updateTask(task.id, { title: editTitle.trim() });
-    }
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit();
-    }
-    if (e.key === 'Escape') {
-      setEditTitle(task.title);
-      setIsEditing(false);
-    }
-  };
-
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    
+    const menuHeight = 400; // 예상 메뉴 높이
+    const menuWidth = 200; // 예상 메뉴 너비
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    
+    let x = e.clientX;
+    let y = e.clientY;
+    
+    // 화면 하단을 벗어나면 위쪽으로 표시
+    if (y + menuHeight > viewportHeight) {
+      y = viewportHeight - menuHeight - 10; // 10px 여유
+    }
+    
+    // 화면 우측을 벗어나면 왼쪽으로 표시
+    if (x + menuWidth > viewportWidth) {
+      x = viewportWidth - menuWidth - 10;
+    }
+    
+    // 최소값 보정
+    x = Math.max(10, x);
+    y = Math.max(10, y);
+    
+    setContextMenuPosition({ x, y });
     setShowContextMenu(true);
   };
 
@@ -240,31 +265,32 @@ export default function TaskItem({ task }: TaskItemProps) {
     }
   }, [showDatePicker]);
 
-  // Pomodoro Timer Update
+  // Pomodoro Timer Update (마감시간 기반)
   useEffect(() => {
-    if (task.pomodoro?.enabled && task.pomodoro?.endTime) {
+    if (task.pomodoro?.enabled && task.dueDate && task.dueTime) {
       const updateTimer = () => {
         const now = new Date();
-        const end = new Date(task.pomodoro!.endTime!);
-        const diff = end.getTime() - now.getTime();
+        
+        // dueDate와 dueTime을 조합하여 마감 시간 생성
+        const dueDate = new Date(task.dueDate!);
+        const [hours, minutes] = task.dueTime!.split(':').map(Number);
+        dueDate.setHours(hours, minutes, 0, 0);
+        
+        const diff = dueDate.getTime() - now.getTime();
 
         if (diff <= 0) {
-          setPomodoroTime('완료!');
-          // 타이머 종료 시 비활성화
-          updateTask(task.id, { 
-            pomodoro: { enabled: false, endTime: undefined } 
-          });
+          setPomodoroTime('마감!');
         } else {
-          const hours = Math.floor(diff / (1000 * 60 * 60));
-          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          const totalHours = Math.floor(diff / (1000 * 60 * 60));
+          const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const secs = Math.floor((diff % (1000 * 60)) / 1000);
           
-          if (hours > 0) {
-            setPomodoroTime(`${hours}시간 ${minutes}분 ${seconds}초`);
-          } else if (minutes > 0) {
-            setPomodoroTime(`${minutes}분 ${seconds}초`);
+          if (totalHours > 0) {
+            setPomodoroTime(`${totalHours}h ${mins}m ${secs}s`);
+          } else if (mins > 0) {
+            setPomodoroTime(`${mins}m ${secs}s`);
           } else {
-            setPomodoroTime(`${seconds}초`);
+            setPomodoroTime(`${secs}s`);
           }
         }
       };
@@ -275,7 +301,7 @@ export default function TaskItem({ task }: TaskItemProps) {
     } else {
       setPomodoroTime('');
     }
-  }, [task.pomodoro, task.id, updateTask]);
+  }, [task.pomodoro, task.dueDate, task.dueTime, task.id]);
 
   // Handle drag start
   const handleDragStart = (e: React.DragEvent) => {
@@ -287,17 +313,113 @@ export default function TaskItem({ task }: TaskItemProps) {
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  // 다중 선택 핸들러
+  const handleTaskClick = (e: React.MouseEvent) => {
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+    
+    if (isShift || isCtrlOrMeta) {
+      e.stopPropagation();
+      
+      // 부모 컴포넌트로 전달하여 범위 선택 처리
+      if (onTaskClick) {
+        onTaskClick(task.id, isShift, isCtrlOrMeta);
+      } else {
+        // 콜백이 없으면 기본 토글
+        toggleTaskSelection(task.id);
+      }
+    } else {
+      // 일반 클릭: 선택 해제 후 상세 보기
+      if (selectedTaskIds.length > 0) {
+        clearSelection();
+      }
+      if (!isSelected) {
+        setShowDetailSidebar(true);
+      }
+    }
+  };
+
+  // 제목 더블클릭 편집
+  const handleTitleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingTitle(true);
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }, 0);
+  };
+
+  // 제목 저장
+  const handleTitleSave = () => {
+    if (editedTitle.trim() && editedTitle !== task.title) {
+      updateTask(task.id, { title: editedTitle.trim() });
+    } else {
+      setEditedTitle(task.title);
+    }
+    setIsEditingTitle(false);
+  };
+
+  // 제목 편집 키 이벤트
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleTitleSave();
+    } else if (e.key === 'Escape') {
+      setEditedTitle(task.title);
+      setIsEditingTitle(false);
+    }
+  };
+
+  // 다중 선택 컨텍스트 메뉴 핸들러
+  const handleBulkAction = (action: string, data?: any) => {
+    const tasksToProcess = selectedTaskIds.length > 0 ? selectedTaskIds : [task.id];
+    
+    switch(action) {
+      case 'delete':
+        bulkDeleteTasks(tasksToProcess);
+        break;
+      case 'complete':
+        bulkCompleteTasks(tasksToProcess);
+        break;
+      case 'addToToday':
+        bulkAddToToday(tasksToProcess);
+        break;
+      case 'markImportant':
+        bulkMarkImportant(tasksToProcess);
+        break;
+      case 'setDueToday':
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        bulkSetDueDate(tasksToProcess, today);
+        break;
+      case 'setDueTomorrow':
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        bulkSetDueDate(tasksToProcess, tomorrow);
+        break;
+      case 'setDueDate':
+        if (data?.date) {
+          bulkSetDueDate(tasksToProcess, data.date);
+        }
+        break;
+    }
+    setShowContextMenu(false);
+  };
+
   return (
     <>
       <div 
         draggable
         onDragStart={handleDragStart}
-        className={`rounded-lg p-2 border border-gray-300 hover:border-gray-400 transition-all cursor-move relative bg-white ${
+        className={`rounded-lg p-2 border border-gray-300 hover:border-gray-400 transition-all relative bg-white ${
           !task.completed ? 'hover:bg-gray-50' : ''
         } ${
           task.completed ? 'opacity-60' : ''
+        } ${
+          isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'cursor-move'
         }`}
-        onClick={() => setShowDetailSidebar(true)}
+        onClick={handleTaskClick}
         onContextMenu={handleContextMenu}
       >
       <div className="flex items-center gap-2">
@@ -318,14 +440,15 @@ export default function TaskItem({ task }: TaskItemProps) {
 
         <div className="flex-1 min-w-0">
           {/* Title */}
-          {isEditing ? (
-              <input
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
               type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              onBlur={handleSaveEdit}
-              onKeyDown={handleKeyDown}
-              className="w-full text-sm font-medium border-none outline-none bg-gray-50 px-2 py-1 rounded"
+              value={editedTitle}
+              onChange={(e) => setEditedTitle(e.target.value)}
+              onBlur={handleTitleSave}
+              onKeyDown={handleTitleKeyDown}
+              className="w-full text-sm font-medium border border-blue-500 outline-none bg-white px-2 py-1 rounded focus:ring-2 focus:ring-blue-300"
               autoFocus
             />
           ) : (
@@ -335,10 +458,7 @@ export default function TaskItem({ task }: TaskItemProps) {
                   className={`text-sm font-normal cursor-pointer hover:text-blue-600 ${
                     task.completed ? 'line-through text-gray-500' : 'text-gray-900'
                   }`}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setShowDetailSidebar(true);
-                  }}
+                  onDoubleClick={handleTitleDoubleClick}
                 >
                   {task.title}
                 </h3>
@@ -389,7 +509,7 @@ export default function TaskItem({ task }: TaskItemProps) {
                       <Calendar className="w-3 h-3" />
                       <span>
                         {renderDateWithColor(new Date(task.dueDate))}
-                        {task.dueTime && ` ${task.dueTime}`}
+                        {task.dueTime && ` ${formatTime(task.dueTime)}`}
                       </span>
                     </div>
                   )}
@@ -509,33 +629,109 @@ export default function TaskItem({ task }: TaskItemProps) {
             top: contextMenuPosition.y,
           }}
         >
-          <button
-            onClick={handleMarkImportant}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-          >
-            <Star className="w-4 h-4" />
-            {task.isImportant ? '중요로 표시 해제' : '중요로 표시'}
-          </button>
-          
-          <button
-            onClick={handleMarkCompleted}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-          >
-            <Check className="w-4 h-4" />
-            {task.completed ? '완료 해제' : '완료됨으로 표시'}
-          </button>
-          
-          <div className="border-t border-gray-100 my-1"></div>
-          
-          <button
-            onClick={handleAddToTodayList}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-          >
-            <Calendar className="w-4 h-4 text-blue-500" />
-            {task.isToday ? '나의 하루에서 제거' : '오늘 하루에 추가'}
-          </button>
-          
-          <div className="border-t border-gray-100 my-1"></div>
+          {/* 다중 선택 모드일 때 */}
+          {selectedTaskIds.length >= 1 && selectedTaskIds.includes(task.id) ? (
+            <>
+              <div className="px-4 py-2 text-sm font-semibold text-gray-700 bg-blue-50">
+                {selectedTaskIds.length}개 항목 선택됨
+              </div>
+              <div className="border-t border-gray-100 my-1"></div>
+              
+              <button
+                onClick={() => handleBulkAction('markImportant')}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Star className="w-4 h-4" />
+                중요로 표시
+              </button>
+              
+              <button
+                onClick={() => handleBulkAction('complete')}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                완료 처리
+              </button>
+              
+              <button
+                onClick={() => handleBulkAction('addToToday')}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Calendar className="w-4 h-4 text-blue-500" />
+                오늘 하루에 추가
+              </button>
+              
+              <div className="border-t border-gray-100 my-1"></div>
+              
+              {/* 다중 선택 기한 변경 옵션 */}
+              <button
+                onClick={() => handleBulkAction('setDueToday')}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Calendar className="w-4 h-4 text-green-500" />
+                기한: 오늘까지
+              </button>
+              
+              <button
+                onClick={() => handleBulkAction('setDueTomorrow')}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Calendar className="w-4 h-4 text-orange-500" />
+                기한: 내일까지
+              </button>
+              
+              <div className="border-t border-gray-100 my-1"></div>
+              
+              <button
+                onClick={() => handleBulkAction('delete')}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600"
+              >
+                <Trash2 className="w-4 h-4" />
+                선택 항목 삭제
+              </button>
+              
+              <button
+                onClick={() => {
+                  clearSelection();
+                  setShowContextMenu(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                선택 해제
+              </button>
+            </>
+          ) : (
+            /* 단일 선택 모드 */
+            <>
+              <button
+                onClick={handleMarkImportant}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Star className="w-4 h-4" />
+                {task.isImportant ? '중요로 표시 해제' : '중요로 표시'}
+              </button>
+              
+              <button
+                onClick={handleMarkCompleted}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                {task.completed ? '완료 해제' : '완료됨으로 표시'}
+              </button>
+              
+              <div className="border-t border-gray-100 my-1"></div>
+              
+              <button
+                onClick={handleAddToTodayList}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Calendar className="w-4 h-4 text-blue-500" />
+                {task.isToday ? '나의 하루에서 제거' : '오늘 하루에 추가'}
+              </button>
+              
+              <div className="border-t border-gray-100 my-1"></div>
+            </>
+          )}
           
           <button
             onClick={handleAddToToday}
