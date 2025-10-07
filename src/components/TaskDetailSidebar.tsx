@@ -499,20 +499,16 @@ export default function TaskDetailSidebar({ task, isOpen, onClose }: TaskDetailS
                       type="time"
                       value={editedTask.dueTime || ''}
                       onChange={(e) => {
-                        const newTime = e.target.value || undefined;
-                        const updatedTask = { 
+                        // 입력 중에는 로컬 상태만 업데이트
+                        setEditedTask({ 
                           ...editedTask, 
-                          dueTime: newTime 
-                        };
-                        setEditedTask(updatedTask);
-                        // 시간 입력 즉시 저장
-                        updateTask(task.id, { dueTime: newTime });
+                          dueTime: e.target.value || undefined 
+                        });
                       }}
-                      onBlur={() => {
-                        // 포커스를 잃을 때도 저장 (안전장치)
-                        if (editedTask.dueTime) {
-                          updateTask(task.id, { dueTime: editedTask.dueTime });
-                        }
+                      onBlur={(e) => {
+                        // 입력 완료 시에만 저장
+                        const newTime = e.target.value || undefined;
+                        updateTask(task.id, { dueTime: newTime });
                       }}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
