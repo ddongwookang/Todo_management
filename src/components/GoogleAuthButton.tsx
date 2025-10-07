@@ -16,7 +16,15 @@ export default function GoogleAuthButton() {
   useEffect(() => {
     // Firebase 인증 상태 변경 감지
     const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
+      console.log('🔐 [Auth] 인증 상태 변경:', user ? `로그인 (${user.uid})` : '로그아웃');
+      
       if (user) {
+        console.log('👤 [Auth] 사용자 정보:', {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        });
+        
         // 로그인 시
         setFirebaseUser({
           uid: user.uid,
@@ -24,18 +32,25 @@ export default function GoogleAuthButton() {
           displayName: user.displayName,
           photoURL: user.photoURL,
         });
+        console.log('✅ [Auth] firebaseUser 상태 설정됨');
         
         // Firestore 동기화 시작
+        console.log('🔄 [Auth] Firestore 동기화 시작...');
         unsubscribeFirestoreRef.current = initFirestoreSync(user.uid);
+        console.log('✅ [Auth] Firestore 동기화 초기화 완료');
       } else {
+        console.log('🚪 [Auth] 로그아웃 처리 중...');
+        
         // 로그아웃 시
         setFirebaseUser(null);
         setSyncEnabled(false);
+        console.log('✅ [Auth] firebaseUser 초기화됨, syncEnabled = false');
         
         // Firestore 구독 해제
         if (unsubscribeFirestoreRef.current) {
           unsubscribeFirestoreRef.current();
           unsubscribeFirestoreRef.current = null;
+          console.log('✅ [Auth] Firestore 구독 해제됨');
         }
       }
     });
