@@ -11,6 +11,7 @@ import CategoryManager from '@/components/CategoryManager';
 import TrashView from '@/components/TrashView';
 import PlannedScheduleView from '@/components/PlannedScheduleView';
 import VacationManager from '@/components/VacationManager';
+import PomodoroTimer from '@/components/PomodoroTimer';
 import Toast from '@/components/Toast';
 
 export default function Home() {
@@ -18,7 +19,6 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [showUndoHistory, setShowUndoHistory] = useState(false);
   
   // useStore를 먼저 호출하여 undo, canUndo를 사용 가능하게 함
   const { 
@@ -84,20 +84,6 @@ export default function Home() {
     }
   };
   
-  // History 드롭다운 외부 클릭 감지
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (showUndoHistory) {
-        const target = e.target as HTMLElement;
-        if (!target.closest('.history-dropdown') && !target.closest('.history-button')) {
-          setShowUndoHistory(false);
-        }
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUndoHistory]);
 
   // Process recurring tasks on app load and periodically
   useEffect(() => {
@@ -195,6 +181,8 @@ export default function Home() {
 
   const getViewTitle = () => {
     switch (activeView) {
+      case 'pomodoro':
+        return '뽀모도로';
       case 'vacation':
         return '휴가 설정';
       case 'today':
@@ -297,93 +285,36 @@ export default function Home() {
                   </h1>
                 </div>
                 <div className="flex items-center gap-3">
-                  {/* Undo 버튼 그룹 */}
-                  <div className="flex items-center gap-1 relative">
-                    <button
-                      onClick={handleUndoClick}
-                      disabled={!canUndo()}
-                      className={`
-                        px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-medium
-                        transition-all duration-200
-                        ${canUndo() 
-                          ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 active:scale-95' 
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }
-                      `}
-                      title="Ctrl+Z"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                      </svg>
-                      <span className="hidden sm:inline">실행 취소</span>
-                    </button>
-                    
-                    {/* History 버튼 */}
-                    {history.length > 0 && (
-                      <button
-                        onClick={() => setShowUndoHistory(!showUndoHistory)}
-                        className="history-button px-2 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-                        title="작업 기록"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </button>
-                    )}
-                    
-                    {/* History 드롭다운 */}
-                    {showUndoHistory && history.length > 0 && (
-                      <div className="history-dropdown absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
-                        <div className="p-3 border-b border-gray-100">
-                          <h3 className="text-sm font-semibold text-gray-900">최근 작업 내역</h3>
-                          <p className="text-xs text-gray-500 mt-1">{history.length}개의 취소 가능한 작업</p>
-                        </div>
-                        <div className="p-2">
-                          {history.slice().reverse().map((item, index) => {
-                            const timeAgo = Math.floor((Date.now() - item.timestamp) / 1000);
-                            const canUndoThis = timeAgo <= 5;
-                            
-                            return (
-                              <div
-                                key={index}
-                                className={`p-2 rounded text-xs mb-1 ${
-                                  canUndoThis ? 'bg-blue-50 text-blue-900' : 'bg-gray-50 text-gray-500'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium">
-                                    {item.type === 'delete' ? '🗑️ 삭제' :
-                                     item.type === 'complete' ? '✓ 완료' :
-                                     item.type === 'update' ? '✏️ 수정' :
-                                     '📦 일괄 작업'}
-                                  </span>
-                                  <span className={canUndoThis ? 'text-blue-600' : 'text-gray-400'}>
-                                    {timeAgo}초 전
-                                  </span>
-                                </div>
-                                <div className="mt-1 text-gray-600">
-                                  {item.data.tasks?.length || 0}개 항목
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="text-xs sm:text-sm text-gray-500">
-                    {activeView === 'today' && `${todayTaskCount}개 목록`}
-                  </div>
+                  {/* Undo 버튼만 표시 */}
+                  <button
+                    onClick={handleUndoClick}
+                    disabled={!canUndo()}
+                    className={`
+                      px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-medium
+                      transition-all duration-200
+                      ${canUndo() 
+                        ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 active:scale-95' 
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }
+                    `}
+                    title="Ctrl+Z"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                    <span className="hidden sm:inline">실행 취소</span>
+                  </button>
                 </div>
               </div>
             </div>
 
               {/* Task Input - only show for task views */}
-              {!['trash', 'categories', 'vacation'].includes(activeView) && <TaskInput />}
+              {!['trash', 'categories', 'vacation', 'pomodoro'].includes(activeView) && <TaskInput />}
 
               {/* Content */}
-              {activeView === 'vacation' ? (
+              {activeView === 'pomodoro' ? (
+                <PomodoroTimer />
+              ) : activeView === 'vacation' ? (
                 <VacationManager />
               ) : activeView === 'categories' ? (
                 <CategoryManager />

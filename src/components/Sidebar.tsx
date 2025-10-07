@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Folder,
   Plus,
+  Timer,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import SearchBar from './SearchBar';
@@ -107,6 +108,15 @@ export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
       borderColor: 'border-orange-200',
+    },
+    {
+      id: 'pomodoro',
+      name: '뽀모도로',
+      icon: Timer,
+      count: 0,
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-50',
+      borderColor: 'border-purple-200',
     },
     {
       id: 'vacation',
