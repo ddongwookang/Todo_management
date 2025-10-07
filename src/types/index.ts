@@ -100,6 +100,18 @@ export interface FirebaseUser {
   photoURL: string | null;
 }
 
+export interface AuthState {
+  loading: boolean;
+  uid: string | null;
+}
+
+export interface PendingWrite {
+  id: string;
+  type: 'add' | 'update' | 'delete' | 'complete';
+  taskData: any;
+  timestamp: number;
+}
+
 export interface AppState {
   users: User[];
   categories: Category[];
@@ -112,4 +124,7 @@ export interface AppState {
   history: HistoryAction[];
   pomodoroSettings: PomodoroSettings;
   firebaseUser: FirebaseUser | null;
+  // 새로운 Auth 상태
+  auth: AuthState;
+  pendingWrites: PendingWrite[];
 }
