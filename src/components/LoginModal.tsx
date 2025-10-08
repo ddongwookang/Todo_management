@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, OAuthProvider } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 import { X } from 'lucide-react';
 
@@ -31,9 +31,36 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     }
   };
 
-  // Microsoft 로그인은 추후 구현 가능
   const handleMicrosoftLogin = async () => {
-    alert('Microsoft 로그인은 현재 준비 중입니다.');
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new OAuthProvider('microsoft.com');
+      // 선택적 설정
+      provider.setCustomParameters({
+        prompt: 'select_account',
+      });
+      provider.addScope('User.Read');
+      
+      await signInWithPopup(auth, provider);
+      console.log('✅ Microsoft 로그인 성공');
+      onClose(); // 로그인 성공 시 모달 닫기
+    } catch (error: any) {
+      console.error('❌ Microsoft 로그인 실패:', error);
+      
+      // 에러 메시지 처리
+      if (error.code === 'auth/popup-blocked') {
+        setError('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setError('현재 도메인이 Firebase에 등록되지 않았습니다. Firebase Console에서 도메인을 추가해주세요.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        setError('로그인이 취소되었습니다.');
+      } else {
+        setError(error.message || 'Microsoft 로그인에 실패했습니다. 다시 시도해주세요.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -103,11 +130,11 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               <span>{loading ? '로그인 중...' : 'Google로 계속하기'}</span>
             </button>
 
-            {/* Microsoft 로그인 (준비 중) */}
+            {/* Microsoft 로그인 */}
             <button
               onClick={handleMicrosoftLogin}
-              disabled={true}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white border-2 border-gray-300 rounded-lg opacity-50 cursor-not-allowed font-medium text-gray-700"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm font-medium text-gray-700"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#f25022" d="M0 0h11.377v11.372H0z"/>
@@ -115,7 +142,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 <path fill="#7fba00" d="M0 12.623h11.377V24H0z"/>
                 <path fill="#ffb900" d="M12.623 12.623H24V24H12.623z"/>
               </svg>
-              <span>Microsoft (준비 중)</span>
+              <span>{loading ? '로그인 중...' : 'Microsoft로 계속하기'}</span>
             </button>
           </div>
 

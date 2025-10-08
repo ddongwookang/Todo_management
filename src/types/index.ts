@@ -98,6 +98,7 @@ export interface FirebaseUser {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  providerId?: string; // 'google.com' or 'microsoft.com'
 }
 
 export interface AuthState {

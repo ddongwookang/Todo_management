@@ -33,13 +33,17 @@ export default function AccountButton({ onLogout, onLoginClick }: AccountButtonP
           uid: user.uid,
         });
         console.log('✅ [Auth] Auth 상태 설정됨 (loading=false)');
+        // providerId 추출 (google.com 또는 microsoft.com)
+        const providerId = user.providerData[0]?.providerId || 'unknown';
+        
         setFirebaseUser({
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
+          providerId: providerId,
         });
-        console.log('✅ [Auth] firebaseUser 상태 설정됨');
+        console.log('✅ [Auth] firebaseUser 상태 설정됨, provider:', providerId);
         
         // Firestore 동기화 시작
         console.log('🔄 [Auth] Firestore 동기화 시작...');
@@ -159,11 +163,11 @@ export default function AccountButton({ onLogout, onLoginClick }: AccountButtonP
       )}
 
       {/* 이름 & 이메일 - 항상 표시 */}
-      <div className="flex flex-col items-start min-w-0">
-        <span className="text-sm font-semibold text-gray-900 truncate max-w-[150px] sm:max-w-[200px]">
+      <div className="flex-1 flex flex-col items-start min-w-0 overflow-hidden">
+        <span className="text-sm font-semibold text-gray-900 truncate w-full" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)' }}>
           {firebaseUser.displayName || '사용자'}
         </span>
-        <span className="text-xs text-gray-500 truncate max-w-[150px] sm:max-w-[200px]">
+        <span className="text-xs text-gray-500 truncate w-full" style={{ fontSize: 'clamp(0.625rem, 1.5vw, 0.75rem)' }}>
           {firebaseUser.email || ''}
         </span>
       </div>
