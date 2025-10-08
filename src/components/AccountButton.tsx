@@ -129,7 +129,7 @@ export default function AccountButton({ onLogout, onLoginClick }: AccountButtonP
       onClick={handleLogout}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="relative flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-200"
       aria-label="계정 - 로그아웃하려면 클릭"
       title="로그아웃"
       tabIndex={0}
@@ -144,11 +144,11 @@ export default function AccountButton({ onLogout, onLoginClick }: AccountButtonP
         <img
           src={firebaseUser.photoURL}
           alt={firebaseUser.displayName || '프로필'}
-          className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+          className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
         />
       ) : (
         <div 
-          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm"
           style={{ 
             backgroundColor: '#4285F4',
             border: '2px solid rgba(66, 133, 244, 0.2)'
@@ -158,12 +158,12 @@ export default function AccountButton({ onLogout, onLoginClick }: AccountButtonP
         </div>
       )}
 
-      {/* 이름 & 이메일 */}
-      <div className="hidden lg:flex flex-col items-start min-w-0">
-        <span className="text-xs font-semibold text-gray-900 truncate max-w-[120px]">
+      {/* 이름 & 이메일 - 항상 표시 */}
+      <div className="flex flex-col items-start min-w-0">
+        <span className="text-sm font-semibold text-gray-900 truncate max-w-[150px] sm:max-w-[200px]">
           {firebaseUser.displayName || '사용자'}
         </span>
-        <span className="text-[10px] text-gray-500 truncate max-w-[120px]">
+        <span className="text-xs text-gray-500 truncate max-w-[150px] sm:max-w-[200px]">
           {firebaseUser.email || ''}
         </span>
       </div>

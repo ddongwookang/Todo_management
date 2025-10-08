@@ -269,12 +269,45 @@ export default function Home() {
         <div className="flex-1 overflow-hidden bg-white w-full">
           <div className="h-full overflow-y-auto">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+            
+            {/* 최상단: 계정 정보 */}
+            <div className="mb-4 flex items-center justify-between">
+              {/* 좌측: 계정 버튼 */}
+              <AccountButton 
+                onLogout={() => {
+                  setToastMessage('로그아웃되었습니다');
+                  setShowToast(true);
+                }}
+                onLoginClick={() => setShowLoginModal(true)}
+              />
+
+              {/* 우측: 실행 취소 버튼 */}
+              <button
+                onClick={handleUndoClick}
+                disabled={!canUndo()}
+                className={`
+                  px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-medium
+                  transition-all duration-200
+                  ${canUndo() 
+                    ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 active:scale-95' 
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }
+                `}
+                title="Ctrl+Z"
+                aria-label="실행 취소"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                <span className="hidden sm:inline">실행 취소</span>
+              </button>
+            </div>
+
             {/* Header */}
             <div className="mb-4 sm:mb-6">
-              {/* 헤더: 햄버거 + 타이틀 + 계정 + 실행취소 */}
               <div className="flex items-center justify-between">
-                {/* 좌측: 햄버거 + 타이틀 + 계정 */}
                 <div className="flex items-center gap-3">
+                  {/* 햄버거 메뉴 버튼 */}
                   <button
                     onClick={() => setSidebarOpen(!sidebarOpen)}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -287,39 +320,7 @@ export default function Home() {
                   <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
                     {getViewTitle()}
                   </h1>
-                  
-                  {/* 타이틀 오른쪽에 계정 버튼 */}
-                  <div className="ml-2">
-                    <AccountButton 
-                      onLogout={() => {
-                        setToastMessage('로그아웃되었습니다');
-                        setShowToast(true);
-                      }}
-                      onLoginClick={() => setShowLoginModal(true)}
-                    />
-                  </div>
                 </div>
-
-                {/* 우측: 실행 취소 버튼 */}
-                <button
-                  onClick={handleUndoClick}
-                  disabled={!canUndo()}
-                  className={`
-                    px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-medium
-                    transition-all duration-200
-                    ${canUndo() 
-                      ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 active:scale-95' 
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    }
-                  `}
-                  title="Ctrl+Z"
-                  aria-label="실행 취소"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                  </svg>
-                  <span className="hidden sm:inline">실행 취소</span>
-                </button>
               </div>
             </div>
 
