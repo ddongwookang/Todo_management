@@ -254,18 +254,29 @@ export const useStore = create<AppStore>()(
         
         // 3. Firestore에 저장 (비동기, 로컬 상태와 독립적)
         if (auth.uid) {
-          console.log('💾 [addTask] Firestore 저장 시작...');
+          console.info('💾 [addTask] ===== Firestore 저장 시작 =====');
+          console.info('[addTask] uid =', auth.uid);
+          console.info('[addTask] taskId =', newTask.id);
+          console.info('[addTask] title =', newTask.title);
+          
           addTaskToFirestore(auth.uid, newTask)
             .then(() => {
-              console.log('✅ [addTask] Firestore 저장 성공!', newTask.id);
+              console.info('✅✅✅ [addTask] Firestore 저장 성공! ✅✅✅');
+              console.info('[addTask] 저장된 Task ID:', newTask.id);
             })
             .catch((error) => {
-              console.error('❌ [addTask] Firestore 저장 실패:', error);
-              console.error('  - 코드:', error.code);
-              console.error('  - 메시지:', error.message);
+              console.error('❌❌❌ [addTask] Firestore 저장 실패! ❌❌❌');
+              console.error('[addTask:ERROR] 코드:', error.code);
+              console.error('[addTask:ERROR] 메시지:', error.message);
+              console.error('[addTask:ERROR] Full Error:', error);
+              
+              // 사용자에게 알림
+              alert(`Firestore 저장 실패!\n에러: ${error.code}\n메시지: ${error.message}\n\n로그아웃 후 데이터가 사라집니다.`);
             });
         } else {
-          console.log('⚠️ [addTask] 로그아웃 상태, Firestore 저장 건너뜀');
+          console.warn('⚠️⚠️⚠️ [addTask] 로그아웃 상태! Firestore 저장 안됨! ⚠️⚠️⚠️');
+          console.warn('[addTask] auth.uid가 없습니다. 로그인을 확인하세요.');
+          alert('로그인 상태가 아닙니다!\nFirestore에 저장되지 않으며, 로그아웃 시 데이터가 사라집니다.');
         }
       },
       updateTask: (id, updates) => {
