@@ -11,7 +11,6 @@ import {
   subscribeToTasks,
 } from './firestore';
 import { createRepository, DataRepository } from './dataLayer';
-import { auth as firebaseAuth, app } from './firebase';
 
 interface AppStore extends AppState {
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>) => void;
@@ -208,19 +207,6 @@ export const useStore = create<AppStore>()(
         
         const { auth, history } = get();
         
-
-        // [추가 로깅] Firebase Auth 상태 직접 확인
-        console.info('[write] ===== addTask 실행 직전 Firebase Auth 상태 =====');
-        console.info('[write] projectId =', app.options.projectId);
-        console.info('[write] auth.currentUser?.uid =', firebaseAuth.currentUser?.uid || 'NULL');
-        console.info('[write] Zustand auth.uid =', auth.uid || 'NULL');
-        console.info('[write] taskId =', newTask.id);
-        if (firebaseAuth.currentUser && auth.uid) {
-          console.info('[write] path =', `users/${auth.uid}/tasks/${newTask.id}`);
-        } else {
-          console.warn('[write] ⚠️ auth.currentUser 또는 auth.uid가 없습니다!');
-        }
-
         console.log('🔵 [addTask] 호출됨:', {
           title: taskData.title,
           id: newTask.id,

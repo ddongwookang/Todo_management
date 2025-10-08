@@ -167,14 +167,18 @@ export const subscribeToTasks = (uid: string, callback: (tasks: Task[]) => void)
   console.log('📍 [Firestore] 구독 경로:', `users/${uid}/tasks`);
   
   const unsubscribe = onSnapshot(tasksRef, (snapshot) => {
-    console.log('📨 [Firestore] onSnapshot 트리거됨, 문서 개수:', snapshot.size);
+    console.info('📨 [sync] ===== onSnapshot 트리거 =====');
+    console.info('[sync] tasks 수신:', snapshot.docs.length, '개');
+    console.info('[sync] 문서 개수:', snapshot.size);
+    
     const tasks: Task[] = [];
     snapshot.forEach((doc) => {
       const task = firestoreToTask(doc.id, doc.data());
       tasks.push(task);
-      console.log('  - Task:', doc.id, task.title);
+      console.info('  - Task:', doc.id.slice(0, 8) + '...', task.title);
     });
-    console.log('✅ [Firestore] Task 변환 완료, callback 호출 중...');
+    
+    console.info('✅ [sync] Task 변환 완료, callback 호출 중...');
     callback(tasks);
   }, (error) => {
     console.error('❌ [Firestore] 구독 에러:', error);
