@@ -216,7 +216,7 @@ export const useStore = create<AppStore>()(
         
         // 먼저 로컬 상태에 즉시 추가 (낙관적 업데이트)
         set((state) => ({ tasks: [...state.tasks, newTask] }));
-        console.log('✅ [addTask] 로컬 상태에 추가됨');
+        console.log('✅ [addTask] 로컬 상태에 추가됨, Task ID:', newTask.id);
         
         // 히스토리에 저장
         set({
@@ -254,7 +254,18 @@ export const useStore = create<AppStore>()(
         
         repo.addTask(newTask)
           .then(() => {
-            console.log('✅ [addTask] 저장 성공!');
+            console.log('✅ [addTask] Firestore 저장 성공!', newTask.id);
+            
+            // Firestore 저장 성공 후에도 로컬 상태 확인
+            const currentTasks = get().tasks;
+            const taskExists = currentTasks.some(t => t.id === newTask.id);
+            
+            if (!taskExists) {
+              console.warn('⚠️ [addTask] Task가 로컬 상태에서 사라짐, 재추가:', newTask.id);
+              set((state) => ({ tasks: [...state.tasks, newTask] }));
+            } else {
+              console.log('✅ [addTask] Task가 로컬 상태에 유지됨:', newTask.id);
+            }
           })
           .catch((error) => {
             console.error('❌ [addTask] 저장 실패:', error);
@@ -263,6 +274,8 @@ export const useStore = create<AppStore>()(
               tasks: state.tasks.filter((t) => t.id !== newTask.id),
             }));
             console.log('🗑️ [addTask] 로컬 상태에서 제거됨');
+          });
+      },
           });
       },
       updateTask: (id, updates) => {
@@ -1009,6 +1022,10 @@ export const useStore = create<AppStore>()(
         set({ syncEnabled: true });
         console.log('✅ [Store] syncEnabled = true');
         
+        // 로그인 전 로컬 상태 백업
+        const localTasksBeforeSync = get().tasks;
+        console.log('💾 [Store] 로그인 전 로컬 Task 백업:', localTasksBeforeSync.length, '개');
+        
         // Firestore 실시간 구독
         const unsubscribe = subscribeToTasks(uid, (firestoreTasks) => {
           console.log('📥 [Store] Firestore에서 Task 수신:', {
@@ -1023,13 +1040,28 @@ export const useStore = create<AppStore>()(
           const currentTasks = get().tasks;
           console.log('📦 [Store] 현재 로컬 Task 개수:', currentTasks.length);
           
-          // 로컬에만 있는 Task (아직 Firestore에 저장 중)
+          // 로컬에만 있는 Task (아직 Firestore에 저장 중 OR 로그인 전 생성된 Task)
           const localOnlyTasks = currentTasks.filter(t => !firestoreTaskIds.has(t.id));
           console.log('💾 [Store] 로컬 전용 Task 개수:', localOnlyTasks.length);
           
           // Firestore Task + 로컬 전용 Task 병합
-          set({ tasks: [...firestoreTasks, ...localOnlyTasks] });
-          console.log('✅ [Store] Task 병합 완료, 총:', firestoreTasks.length + localOnlyTasks.length);
+          const mergedTasks = [...firestoreTasks, ...localOnlyTasks];
+          set({ tasks: mergedTasks });
+          console.log('✅ [Store] Task 병합 완료, 총:', mergedTasks.length);
+          
+          // 로컬 전용 Task를 Firestore에 동기화 (로그인 전 생성된 Task)
+          if (localOnlyTasks.length > 0) {
+            console.log('🔄 [Store] 로컬 전용 Task를 Firestore에 동기화 중...', localOnlyTasks.length, '개');
+            const repo = get().getRepository();
+            localOnlyTasks.forEach(async (task) => {
+              try {
+                await repo.addTask(task);
+                console.log('✅ [Store] 로컬 Task Firestore 동기화 성공:', task.id);
+              } catch (error) {
+                console.error('❌ [Store] 로컬 Task Firestore 동기화 실패:', task.id, error);
+              }
+            });
+          }
         });
         
         console.log('✅ [Store] Firestore 구독 설정 완료');
