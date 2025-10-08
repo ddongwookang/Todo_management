@@ -32,38 +32,69 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   };
 
   const handleMicrosoftLogin = async () => {
+    console.log('🔵 [Microsoft Login] 로그인 시작...');
     setLoading(true);
     setError(null);
+    
     try {
+      console.log('🔵 [Microsoft Login] OAuthProvider 생성...');
       const provider = new OAuthProvider('microsoft.com');
+      
       // 선택적 설정
       provider.setCustomParameters({
         prompt: 'select_account',
       });
       provider.addScope('User.Read');
+      console.log('✅ [Microsoft Login] Provider 설정 완료');
       
-      await signInWithPopup(auth, provider);
-      console.log('✅ Microsoft 로그인 성공');
+      console.log('🔵 [Microsoft Login] signInWithPopup 호출 중...');
+      const result = await signInWithPopup(auth, provider);
+      
+      console.log('✅ [Microsoft Login] 로그인 성공!');
+      console.log('👤 [Microsoft Login] 사용자 정보:', {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        photoURL: result.user.photoURL,
+        providerId: result.user.providerData[0]?.providerId,
+        providerData: result.user.providerData,
+      });
+      
+      // Credential 정보 (있는 경우)
+      const credential = OAuthProvider.credentialFromResult(result);
+      if (credential) {
+        console.log('🔑 [Microsoft Login] Credential:', {
+          accessToken: credential.accessToken ? '존재함' : '없음',
+          idToken: credential.idToken ? '존재함' : '없음',
+        });
+      }
+      
       onClose(); // 로그인 성공 시 모달 닫기
     } catch (error: any) {
-      console.error('❌ Microsoft 로그인 실패:', error);
+      console.error('❌ [Microsoft Login] 로그인 실패');
+      console.error('📋 [Microsoft Login] Error Code:', error.code);
+      console.error('📋 [Microsoft Login] Error Message:', error.message);
+      console.error('📋 [Microsoft Login] Full Error:', error);
       
       // 에러 메시지 처리
       if (error.code === 'auth/popup-blocked') {
         setError('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.');
       } else if (error.code === 'auth/unauthorized-domain') {
         setError('현재 도메인이 Firebase에 등록되지 않았습니다. Firebase Console에서 도메인을 추가해주세요.');
-      } else if (error.code === 'auth/cancelled-popup-request') {
+      } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
         setError('로그인이 취소되었습니다.');
       } else if (error.message?.includes('AADSTS50011') || error.message?.includes('redirect_uri')) {
         setError('Azure Portal에서 Redirect URI를 등록해주세요: https://todo-management-948f5.firebaseapp.com/__/auth/handler');
       } else if (error.message?.includes('AADSTS')) {
-        setError(`Azure 인증 오류: ${error.message?.split('Message:')[1]?.trim() || error.message}`);
+        const aadMessage = error.message?.split('Message:')[1]?.trim() || error.message;
+        setError(`Azure 인증 오류: ${aadMessage}`);
+        console.error('🔴 [Microsoft Login] Azure Error Details:', aadMessage);
       } else {
-        setError(error.message || 'Microsoft 로그인에 실패했습니다. 다시 시도해주세요.');
+        setError(`로그인 실패: ${error.code || error.message || '알 수 없는 오류'}`);
       }
     } finally {
       setLoading(false);
+      console.log('🏁 [Microsoft Login] 프로세스 종료');
     }
   };
 
