@@ -113,7 +113,7 @@ export default function AccountButton({ onLogout, onLoginClick }: AccountButtonP
     return (
       <button
         onClick={onLoginClick}
-        className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm"
+        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm"
         aria-label="로그인"
       >
         로그인
@@ -129,7 +129,7 @@ export default function AccountButton({ onLogout, onLoginClick }: AccountButtonP
       onClick={handleLogout}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-200"
+      className="w-full relative flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-200 bg-white shadow-sm"
       aria-label="계정 - 로그아웃하려면 클릭"
       title="로그아웃"
       tabIndex={0}

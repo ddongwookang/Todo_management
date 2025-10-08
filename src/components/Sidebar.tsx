@@ -19,13 +19,16 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import SearchBar from './SearchBar';
+import AccountButton from './AccountButton';
 
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
+  onShowLoginModal?: () => void;
+  onShowToast?: (message: string) => void;
 }
 
-export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
+export default function Sidebar({ activeView, onViewChange, onShowLoginModal, onShowToast }: SidebarProps) {
   const { 
     tasks, 
     currentUser, 
@@ -155,15 +158,20 @@ export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
   return (
     <div className="w-64 bg-gray-50 border-r border-gray-200 h-screen overflow-y-auto flex flex-col">
       <div className="flex-1 p-4">
-        {/* User Profile */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
-            {currentUser?.name.charAt(0)}
-          </div>
-          <div>
-            <div className="font-medium text-gray-900">{currentUser?.name}</div>
-            <div className="text-sm text-gray-500">{currentUser?.email}</div>
-          </div>
+        {/* 계정 정보 */}
+        <div className="mb-4">
+          <AccountButton 
+            onLogout={() => {
+              if (onShowToast) {
+                onShowToast('로그아웃되었습니다');
+              }
+            }}
+            onLoginClick={() => {
+              if (onShowLoginModal) {
+                onShowLoginModal();
+              }
+            }}
+          />
         </div>
 
         {/* Search Bar */}
