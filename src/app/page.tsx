@@ -13,13 +13,15 @@ import PlannedScheduleView from '@/components/PlannedScheduleView';
 import VacationManager from '@/components/VacationManager';
 import PomodoroTimer from '@/components/PomodoroTimer';
 import Toast from '@/components/Toast';
-import GoogleAuthButton from '@/components/GoogleAuthButton';
+import AccountButton from '@/components/AccountButton';
+import LoginModal from '@/components/LoginModal';
 
 export default function Home() {
   const [activeView, setActiveView] = useState('today');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
   
   // useStore를 먼저 호출하여 undo, canUndo를 사용 가능하게 함
   const { 
@@ -269,9 +271,10 @@ export default function Home() {
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
             {/* Header */}
             <div className="mb-4 sm:mb-6">
+              {/* 헤더: 햄버거 + 타이틀 + 계정 + 실행취소 */}
               <div className="flex items-center justify-between">
+                {/* 좌측: 햄버거 + 타이틀 + 계정 */}
                 <div className="flex items-center gap-3">
-                  {/* 햄버거 메뉴 버튼 */}
                   <button
                     onClick={() => setSidebarOpen(!sidebarOpen)}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -284,31 +287,39 @@ export default function Home() {
                   <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
                     {getViewTitle()}
                   </h1>
-                </div>
-                <div className="flex items-center gap-3">
-                  {/* Undo 버튼 */}
-                  <button
-                    onClick={handleUndoClick}
-                    disabled={!canUndo()}
-                    className={`
-                      px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-medium
-                      transition-all duration-200
-                      ${canUndo() 
-                        ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 active:scale-95' 
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }
-                    `}
-                    title="Ctrl+Z"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                    </svg>
-                    <span className="hidden sm:inline">실행 취소</span>
-                  </button>
                   
-                  {/* Google 로그인 버튼 */}
-                  <GoogleAuthButton />
+                  {/* 타이틀 오른쪽에 계정 버튼 */}
+                  <div className="ml-2">
+                    <AccountButton 
+                      onLogout={() => {
+                        setToastMessage('로그아웃되었습니다');
+                        setShowToast(true);
+                      }}
+                      onLoginClick={() => setShowLoginModal(true)}
+                    />
+                  </div>
                 </div>
+
+                {/* 우측: 실행 취소 버튼 */}
+                <button
+                  onClick={handleUndoClick}
+                  disabled={!canUndo()}
+                  className={`
+                    px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-medium
+                    transition-all duration-200
+                    ${canUndo() 
+                      ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 active:scale-95' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }
+                  `}
+                  title="Ctrl+Z"
+                  aria-label="실행 취소"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                  <span className="hidden sm:inline">실행 취소</span>
+                </button>
               </div>
             </div>
 
@@ -345,6 +356,12 @@ export default function Home() {
         message={toastMessage}
         isVisible={showToast}
         onClose={() => setShowToast(false)}
+      />
+
+      {/* 로그인 모달 */}
+      <LoginModal 
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
       />
     </ClientOnly>
   );
