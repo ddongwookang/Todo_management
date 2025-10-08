@@ -276,8 +276,6 @@ export const useStore = create<AppStore>()(
             console.log('🗑️ [addTask] 로컬 상태에서 제거됨');
           });
       },
-          });
-      },
       updateTask: (id, updates) => {
         const { tasks, history, firebaseUser, syncEnabled } = get();
         const task = tasks.find(t => t.id === id);
