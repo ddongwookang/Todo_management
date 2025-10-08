@@ -119,7 +119,8 @@ export default function Home() {
     }).length;
   }, [tasks]); // tasks가 변경될 때마다 재계산
 
-  const getCurrentTasks = () => {
+  // getCurrentTasks를 useMemo로 최적화하여 tasks 변경 시 자동 재계산
+  const currentTasks = useMemo(() => {
     const filteredTasks = getFilteredTasks();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -127,15 +128,11 @@ export default function Home() {
     switch (activeView) {
       case 'today':
         // 오늘 할 일: 엄격한 조건 - A 또는 B만 허용
-        // A: 사용자가 명시적으로 '오늘 하루에 추가'한 태스크 (isToday = true)
-        // B: 데드라인이 정확히 오늘인 태스크 (dueDate == today)
         return filteredTasks.filter(task => {
           if (task.completed) return false;
           
-          // 조건 A: '오늘 하루에 추가'로 명시 추가된 태스크
           const conditionA = task.isToday === true;
           
-          // 조건 B: 데드라인이 정확히 오늘인 태스크
           let conditionB = false;
           if (task.dueDate) {
             const dueDate = new Date(task.dueDate);
@@ -143,34 +140,34 @@ export default function Home() {
             conditionB = dueDate.getTime() === today.getTime();
           }
           
-          // A 또는 B 중 하나라도 만족하면 표시
           return conditionA || conditionB;
         });
+      
+      case 'all':
+        return filteredTasks;
+      
       case 'important':
         return filteredTasks.filter(task => task.isImportant && !task.completed);
-      case 'all':
-        return filteredTasks.filter(task => !task.completed);
+      
+      case 'planned':
+        return filteredTasks.filter(task => task.dueDate && !task.completed);
+      
       case 'assigned':
-        return filteredTasks.filter(task => !task.completed);
+        return currentUser ? getUserTasks(currentUser.id).filter(t => !t.completed && !t.isDeleted) : [];
+      
       case 'completed':
-        return filteredTasks.filter(task => task.completed);
-      case 'my-tasks':
-        return filteredTasks.filter(task => 
-          task.assignees.includes(currentUser?.id || '') && !task.completed
-        );
-      case 'trash':
-        return getDeletedTasks();
+        return getCompletedTasks();
+      
       default:
-        // Handle category views
         if (activeView.startsWith('category-')) {
           const categoryId = activeView.replace('category-', '');
-          return filteredTasks.filter(task => 
-            task.categoryId === categoryId && !task.completed
-          );
+          return filteredTasks.filter(task => task.categoryId === categoryId && !task.completed);
         }
         return [];
     }
-  };
+  }, [tasks, activeView, getFilteredTasks, currentUser, getUserTasks, getCompletedTasks]);
+
+  const getCurrentTasks = () => currentTasks;
 
   const getCompletedTasksForToday = () => {
     if (activeView === 'today') {
