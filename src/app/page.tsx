@@ -158,6 +158,9 @@ export default function Home() {
       case 'completed':
         return getCompletedTasks();
       
+      case 'trash':
+        return getDeletedTasks();
+      
       default:
         if (activeView.startsWith('category-')) {
           const categoryId = activeView.replace('category-', '');
@@ -165,7 +168,7 @@ export default function Home() {
         }
         return [];
     }
-  }, [tasks, activeView, getFilteredTasks, currentUser, getUserTasks, getCompletedTasks]);
+  }, [tasks, activeView, getFilteredTasks, currentUser, getUserTasks, getCompletedTasks, getDeletedTasks]);
 
   const getCurrentTasks = () => currentTasks;
 

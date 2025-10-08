@@ -205,20 +205,26 @@ export const useStore = create<AppStore>()(
           isDeleted: false,
         };
         
-        const { auth, history, pendingWrites } = get();
+        const { auth, history } = get();
         
         console.log('🔵 [addTask] 호출됨:', {
-          taskTitle: taskData.title,
-          taskId: newTask.id,
-          authLoading: auth.loading,
+          title: taskData.title,
+          id: newTask.id,
+          isToday: newTask.isToday,
           authUid: auth.uid?.slice(0, 6) + '***' || 'NULL',
         });
         
-        // 먼저 로컬 상태에 즉시 추가 (낙관적 업데이트)
-        set((state) => ({ tasks: [...state.tasks, newTask] }));
-        console.log('✅ [addTask] 로컬 상태에 추가됨, Task ID:', newTask.id);
+        // 1. 먼저 로컬 상태에 즉시 추가
+        set((state) => {
+          console.log('📦 [addTask] 이전 Task 개수:', state.tasks.length);
+          const newTasks = [...state.tasks, newTask];
+          console.log('📦 [addTask] 새 Task 개수:', newTasks.length);
+          return { tasks: newTasks };
+        });
         
-        // 히스토리에 저장
+        console.log('✅ [addTask] 로컬 상태 업데이트 완료');
+        
+        // 2. 히스토리에 저장 (Undo용)
         set({
           history: [
             ...history,
@@ -232,49 +238,21 @@ export const useStore = create<AppStore>()(
           ].slice(-10),
         });
         
-        // Auth 준비 확인
-        if (auth.loading) {
-          console.warn('⚠️ [addTask] Auth 로딩 중, 큐에 추가');
-          set({
-            pendingWrites: [
-              ...pendingWrites,
-              {
-                id: uuidv4(),
-                type: 'add',
-                taskData: newTask,
-                timestamp: Date.now(),
-              },
-            ],
-          });
-          return;
+        // 3. Firestore에 저장 (비동기, 로컬 상태와 독립적)
+        if (auth.uid) {
+          console.log('💾 [addTask] Firestore 저장 시작...');
+          addTaskToFirestore(auth.uid, newTask)
+            .then(() => {
+              console.log('✅ [addTask] Firestore 저장 성공!', newTask.id);
+            })
+            .catch((error) => {
+              console.error('❌ [addTask] Firestore 저장 실패:', error);
+              console.error('  - 코드:', error.code);
+              console.error('  - 메시지:', error.message);
+            });
+        } else {
+          console.log('⚠️ [addTask] 로그아웃 상태, Firestore 저장 건너뜀');
         }
-        
-        // Repository를 통해 저장
-        const repo = get().getRepository();
-        
-        repo.addTask(newTask)
-          .then(() => {
-            console.log('✅ [addTask] Firestore 저장 성공!', newTask.id);
-            
-            // Firestore 저장 성공 후에도 로컬 상태 확인
-            const currentTasks = get().tasks;
-            const taskExists = currentTasks.some(t => t.id === newTask.id);
-            
-            if (!taskExists) {
-              console.warn('⚠️ [addTask] Task가 로컬 상태에서 사라짐, 재추가:', newTask.id);
-              set((state) => ({ tasks: [...state.tasks, newTask] }));
-            } else {
-              console.log('✅ [addTask] Task가 로컬 상태에 유지됨:', newTask.id);
-            }
-          })
-          .catch((error) => {
-            console.error('❌ [addTask] 저장 실패:', error);
-            // 실패 시 로컬 상태에서 제거
-            set((state) => ({
-              tasks: state.tasks.filter((t) => t.id !== newTask.id),
-            }));
-            console.log('🗑️ [addTask] 로컬 상태에서 제거됨');
-          });
       },
       updateTask: (id, updates) => {
         const { tasks, history, firebaseUser, syncEnabled } = get();
@@ -311,11 +289,13 @@ export const useStore = create<AppStore>()(
       },
 
       deleteTask: (id) => {
-        const { tasks, history, firebaseUser, syncEnabled } = get();
+        const { tasks, history, auth } = get();
         const task = tasks.find(t => t.id === id);
         if (!task) return;
 
-        // 히스토리에 이전 상태 저장
+        console.log('🗑️ [deleteTask] 호출됨:', id);
+
+        // 히스토리에 이전 상태 저장 (Undo용)
         set({
           history: [
             ...history,
@@ -329,21 +309,27 @@ export const useStore = create<AppStore>()(
           ].slice(-10),
         });
 
-        // 먼저 로컬 상태 즉시 업데이트 (UX 개선)
+        // 1. 로컬 상태 즉시 업데이트 (소프트 삭제)
         set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === id ? { ...task, isDeleted: true, deletedAt: new Date() } : task
+          tasks: state.tasks.map((t) =>
+            t.id === id ? { ...t, isDeleted: true, deletedAt: new Date() } : t
           ),
         }));
 
-        // Firestore 비동기 업데이트 (소프트 삭제)
-        if (syncEnabled && firebaseUser) {
-          updateTaskInFirestore(firebaseUser.uid, id, { isDeleted: true, deletedAt: new Date() }).catch((error) => {
-            console.error('Failed to delete task in Firestore:', error);
-          });
+        console.log('✅ [deleteTask] 로컬 상태 업데이트 완료');
+
+        // 2. Firestore 비동기 업데이트 (소프트 삭제)
+        if (auth.uid) {
+          console.log('💾 [deleteTask] Firestore 업데이트 시작...');
+          updateTaskInFirestore(auth.uid, id, { isDeleted: true, deletedAt: new Date() })
+            .then(() => {
+              console.log('✅ [deleteTask] Firestore 업데이트 성공!');
+            })
+            .catch((error) => {
+              console.error('❌ [deleteTask] Firestore 업데이트 실패:', error);
+            });
         }
       },
-
       toggleTaskComplete: (id) => {
         const { tasks, history } = get();
         const task = tasks.find(t => t.id === id);
@@ -547,17 +533,55 @@ export const useStore = create<AppStore>()(
       },
 
       restoreTask: (id) => {
+        const { auth } = get();
+        
+        console.log('🔄 [restoreTask] 호출됨:', id);
+        
+        // 1. 로컬 상태 업데이트
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === id ? { ...task, isDeleted: false, deletedAt: undefined } : task
           ),
         }));
+        
+        console.log('✅ [restoreTask] 로컬 상태 업데이트 완료');
+        
+        // 2. Firestore 동기화
+        if (auth.uid) {
+          console.log('💾 [restoreTask] Firestore 업데이트 시작...');
+          updateTaskInFirestore(auth.uid, id, { isDeleted: false, deletedAt: undefined })
+            .then(() => {
+              console.log('✅ [restoreTask] Firestore 업데이트 성공!');
+            })
+            .catch((error) => {
+              console.error('❌ [restoreTask] Firestore 업데이트 실패:', error);
+            });
+        }
       },
 
       permanentDeleteTask: (id) => {
+        const { auth } = get();
+        
+        console.log('🗑️ [permanentDeleteTask] 호출됨:', id);
+        
+        // 1. 로컬 상태에서 제거
         set((state) => ({
           tasks: state.tasks.filter((task) => task.id !== id),
         }));
+        
+        console.log('✅ [permanentDeleteTask] 로컬 상태 업데이트 완료');
+        
+        // 2. Firestore에서 영구 삭제
+        if (auth.uid) {
+          console.log('💾 [permanentDeleteTask] Firestore 삭제 시작...');
+          deleteTaskFromFirestore(auth.uid, id)
+            .then(() => {
+              console.log('✅ [permanentDeleteTask] Firestore 삭제 성공!');
+            })
+            .catch((error) => {
+              console.error('❌ [permanentDeleteTask] Firestore 삭제 실패:', error);
+            });
+        }
       },
 
       setFilter: (newFilter) => {
@@ -1015,51 +1039,19 @@ export const useStore = create<AppStore>()(
       },
 
       // Firestore 동기화 초기화
+      // Firestore 동기화 초기화
       initFirestoreSync: (uid) => {
         console.log('🔄 [Store] initFirestoreSync 호출됨, uid:', uid);
         set({ syncEnabled: true });
         console.log('✅ [Store] syncEnabled = true');
         
-        // 로그인 전 로컬 상태 백업
-        const localTasksBeforeSync = get().tasks;
-        console.log('💾 [Store] 로그인 전 로컬 Task 백업:', localTasksBeforeSync.length, '개');
-        
         // Firestore 실시간 구독
         const unsubscribe = subscribeToTasks(uid, (firestoreTasks) => {
-          console.log('📥 [Store] Firestore에서 Task 수신:', {
-            count: firestoreTasks.length,
-            taskIds: firestoreTasks.map(t => t.id).slice(0, 5), // 처음 5개만
-          });
+          console.log('📥 [Store] Firestore에서 Task 수신:', firestoreTasks.length, '개');
           
-          // Firestore에서 받은 Task ID 목록
-          const firestoreTaskIds = new Set(firestoreTasks.map(t => t.id));
-          
-          // 현재 로컬 상태 가져오기
-          const currentTasks = get().tasks;
-          console.log('📦 [Store] 현재 로컬 Task 개수:', currentTasks.length);
-          
-          // 로컬에만 있는 Task (아직 Firestore에 저장 중 OR 로그인 전 생성된 Task)
-          const localOnlyTasks = currentTasks.filter(t => !firestoreTaskIds.has(t.id));
-          console.log('💾 [Store] 로컬 전용 Task 개수:', localOnlyTasks.length);
-          
-          // Firestore Task + 로컬 전용 Task 병합
-          const mergedTasks = [...firestoreTasks, ...localOnlyTasks];
-          set({ tasks: mergedTasks });
-          console.log('✅ [Store] Task 병합 완료, 총:', mergedTasks.length);
-          
-          // 로컬 전용 Task를 Firestore에 동기화 (로그인 전 생성된 Task)
-          if (localOnlyTasks.length > 0) {
-            console.log('🔄 [Store] 로컬 전용 Task를 Firestore에 동기화 중...', localOnlyTasks.length, '개');
-            const repo = get().getRepository();
-            localOnlyTasks.forEach(async (task) => {
-              try {
-                await repo.addTask(task);
-                console.log('✅ [Store] 로컬 Task Firestore 동기화 성공:', task.id);
-              } catch (error) {
-                console.error('❌ [Store] 로컬 Task Firestore 동기화 실패:', task.id, error);
-              }
-            });
-          }
+          // 단순히 Firestore Task로 교체 (로컬 우선순위 없음)
+          set({ tasks: firestoreTasks });
+          console.log('✅ [Store] Task 업데이트 완료');
         });
         
         console.log('✅ [Store] Firestore 구독 설정 완료');
