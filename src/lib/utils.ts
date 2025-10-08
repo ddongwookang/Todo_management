@@ -21,12 +21,12 @@ export function cleanUndefined<T extends Record<string, any>>(obj: T): Partial<T
     
     // 배열 처리
     if (Array.isArray(value)) {
-      result[key] = value.map(item => {
+      result[key] = value.map((item: any) => {
         if (item && typeof item === 'object') {
           return cleanUndefined(item);
         }
         return item;
-      }).filter(item => item !== undefined);
+      }).filter((item: any) => item !== undefined);
       continue;
     }
     
