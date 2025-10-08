@@ -1,18 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // users/{userId}/tasks/{taskId} 규칙
+    // ⚠️ 임시 테스트용 규칙 (개발 중에만 사용!)
+    // 로그인한 모든 사용자가 모든 문서에 읽기/쓰기 가능
     match /users/{userId}/tasks/{taskId} {
-      // 읽기: 인증된 사용자이고, 자신의 문서만 읽을 수 있음
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // 쓰기: 인증된 사용자이고, 자신의 문서만 쓸 수 있음
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null;
     }
     
-    // 테스트용 (문제 해결 후 제거)
+    // 프로덕션용 규칙 (테스트 완료 후 활성화)
     // match /users/{userId}/tasks/{taskId} {
-    //   allow read, write: if request.auth != null;
+    //   // 읽기: 인증된 사용자이고, 자신의 문서만 읽을 수 있음
+    //   allow read: if request.auth != null && request.auth.uid == userId;
+    //   
+    //   // 쓰기: 인증된 사용자이고, 자신의 문서만 쓸 수 있음
+    //   allow write: if request.auth != null && request.auth.uid == userId;
     // }
   }
 }
