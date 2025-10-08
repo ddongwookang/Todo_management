@@ -11,23 +11,56 @@ import {
   Timestamp,
   writeBatch,
   getDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db, app } from './firebase';
-import { Task } from '@/types';
+import { Task, RecurrenceType } from '@/types';
+import { cleanUndefined } from './utils';
 
-// Task를 Firestore 형식으로 변환
+// Task를 Firestore 형식으로 변환 (undefined 제거 + 기본값 강제)
 export const taskToFirestore = (task: Task) => {
-  return {
-    ...task,
-    createdAt: task.createdAt ? Timestamp.fromDate(new Date(task.createdAt)) : Timestamp.now(),
-    updatedAt: task.updatedAt ? Timestamp.fromDate(new Date(task.updatedAt)) : Timestamp.now(),
+  const firestoreTask: any = {
+    // 필수 필드
+    title: task.title || '',
+    isDeleted: task.isDeleted ?? false,
+    completed: task.completed ?? false,
+    
+    // 타임스탬프 (서버 시간 사용)
+    createdAt: task.createdAt ? Timestamp.fromDate(new Date(task.createdAt)) : serverTimestamp(),
+    updatedAt: task.updatedAt ? Timestamp.fromDate(new Date(task.updatedAt)) : serverTimestamp(),
     deletedAt: task.deletedAt ? Timestamp.fromDate(new Date(task.deletedAt)) : null,
+    completedAt: task.completedAt ? Timestamp.fromDate(new Date(task.completedAt)) : null,
+    
+    // 옵션 필드 (기본값: null)
     dueDate: task.dueDate ? Timestamp.fromDate(new Date(task.dueDate)) : null,
+    dueTime: task.dueTime || null,
+    description: task.description || null,
+    categoryId: task.categoryId || null,
+    
+    // 플래그 필드
+    isToday: task.isToday ?? false,
+    isImportant: task.isImportant ?? false,
+    
+    // 배열 필드 (기본값: [])
+    assignees: task.assignees || [],
+    subtasks: task.subtasks || [],
+    
+    // 객체 필드
+    recurrence: task.recurrence || { type: 'none' as RecurrenceType },
     pomodoro: task.pomodoro ? {
-      ...task.pomodoro,
+      enabled: task.pomodoro.enabled ?? false,
       endTime: task.pomodoro.endTime ? Timestamp.fromDate(new Date(task.pomodoro.endTime)) : null,
-    } : undefined,
+    } : null,
+    
+    // 기타 옵션 필드
+    order: task.order ?? 0,
+    emoji: task.emoji || null,
+    parentTaskId: task.parentTaskId || null,
+    assignedTo: task.assignedTo || null,
   };
+  
+  // undefined 제거
+  return cleanUndefined(firestoreTask);
 };
 
 // Firestore 데이터를 Task 형식으로 변환
@@ -62,21 +95,21 @@ export const addTaskToFirestore = async (uid: string, task: Task) => {
   const { id, ...taskWithoutId } = task;
   const taskData = taskToFirestore(taskWithoutId as Task);
   
-  console.info('[write] payload =', {
-    title: taskData.title,
-    userId: taskData.userId,
-    isDeleted: taskData.isDeleted,
-    completed: taskData.completed,
-    createdAt: taskData.createdAt,
-    updatedAt: taskData.updatedAt,
-  });
+  // ===== 2. payload 전체 로깅 (undefined 확인) =====
+  console.info('[payload] 원본 Task 필드:');
+  console.info('  - pomodoro:', task.pomodoro);
+  console.info('  - description:', task.description);
+  console.info('  - categoryId:', task.categoryId);
+  console.info('  - recurrence:', task.recurrence);
+  
+  console.info('[payload] cleanUndefined 적용 후:', JSON.stringify(taskData, null, 2));
   
   try {
-    // ===== 2. setDoc 실행 =====
-    await setDoc(taskRef, taskData);
-    console.info('✅ [write] setDoc 성공!');
+    // ===== 3. setDoc 실행 (merge: true) =====
+    await setDoc(taskRef, taskData, { merge: true });
+    console.info('✅ [write] setDoc 성공! (merge: true)');
     
-    // ===== 3. 쓰기 직후 검증 =====
+    // ===== 4. 쓰기 직후 검증 =====
     console.info('🔍 [verify] 문서 존재 여부 확인 중...');
     const snap = await getDoc(taskRef);
     console.info('[verify] exists =', snap.exists());
@@ -84,9 +117,11 @@ export const addTaskToFirestore = async (uid: string, task: Task) => {
       const data = snap.data();
       console.info('[verify] data =', {
         title: data.title,
-        userId: data.userId,
         isDeleted: data.isDeleted,
         completed: data.completed,
+        pomodoro: data.pomodoro,
+        description: data.description,
+        categoryId: data.categoryId,
       });
     } else {
       console.error('❌ [verify] 문서가 존재하지 않습니다!');
@@ -94,7 +129,7 @@ export const addTaskToFirestore = async (uid: string, task: Task) => {
     
     return task.id;
   } catch (error: any) {
-    // ===== 4. 에러 로깅 =====
+    // ===== 5. 에러 로깅 =====
     console.error('❌ [write:ERROR] ===== 쓰기 실패 =====');
     console.error('[write:ERROR] code =', error.code);
     console.error('[write:ERROR] message =', error.message);
@@ -112,21 +147,33 @@ export const updateTaskInFirestore = async (uid: string, taskId: string, updates
   // Date 객체를 Timestamp로 변환
   if (updateData.updatedAt) {
     updateData.updatedAt = Timestamp.fromDate(new Date(updateData.updatedAt));
+  } else {
+    updateData.updatedAt = serverTimestamp();
   }
+  
   if (updateData.dueDate !== undefined) {
     updateData.dueDate = updateData.dueDate ? Timestamp.fromDate(new Date(updateData.dueDate)) : null;
   }
   if (updateData.deletedAt !== undefined) {
     updateData.deletedAt = updateData.deletedAt ? Timestamp.fromDate(new Date(updateData.deletedAt)) : null;
   }
-  if (updateData.pomodoro) {
-    updateData.pomodoro = {
-      ...updateData.pomodoro,
-      endTime: updateData.pomodoro.endTime ? Timestamp.fromDate(new Date(updateData.pomodoro.endTime)) : null,
-    };
+  if (updateData.pomodoro !== undefined) {
+    if (updateData.pomodoro) {
+      updateData.pomodoro = {
+        enabled: updateData.pomodoro.enabled ?? false,
+        endTime: updateData.pomodoro.endTime ? Timestamp.fromDate(new Date(updateData.pomodoro.endTime)) : null,
+      };
+    } else {
+      updateData.pomodoro = null;
+    }
   }
   
-  await updateDoc(taskRef, updateData);
+  // undefined 제거
+  const cleanedData = cleanUndefined(updateData);
+  
+  console.info('[updateTask] cleanUndefined 적용 후:', JSON.stringify(cleanedData, null, 2));
+  
+  await updateDoc(taskRef, cleanedData);
 };
 
 // Firestore에서 Task 삭제
