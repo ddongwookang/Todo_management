@@ -629,20 +629,47 @@ export const useStore = create<AppStore>()(
       },
 
       getFilteredTasks: () => {
-        const { tasks, filter } = get();
+        const { tasks, filter, users, categories, groups } = get();
         return tasks.filter((task) => {
           if (task.isDeleted) return false;
           
-          // Search filter
+          // Search filter - 제목, 설명, 담당자, 카테고리명, 그룹명 검색
           if (filter.search) {
-            const searchLower = filter.search.toLowerCase();
+            const searchLower = filter.search.toLowerCase().trim();
+            
+            // 제목 검색
             const matchesTitle = task.title.toLowerCase().includes(searchLower);
+            
+            // 설명/메모 검색
             const matchesDescription = task.description?.toLowerCase().includes(searchLower) || false;
+            
+            // 담당자 이름/이메일 검색
             const matchesAssignee = task.assignees.some(assigneeId => {
-              const user = get().users.find(u => u.id === assigneeId);
-              return user?.name.toLowerCase().includes(searchLower) || false;
+              const user = users.find(u => u.id === assigneeId);
+              if (!user) return false;
+              const matchesName = user.name?.toLowerCase().includes(searchLower) || false;
+              const matchesEmail = user.email?.toLowerCase().includes(searchLower) || false;
+              return matchesName || matchesEmail;
             });
-            if (!matchesTitle && !matchesDescription && !matchesAssignee) return false;
+            
+            // 카테고리명 검색
+            const matchesCategory = task.categoryId ? (() => {
+              const category = categories.find(c => c.id === task.categoryId);
+              return category?.name.toLowerCase().includes(searchLower) || false;
+            })() : false;
+            
+            // 그룹명 검색 (카테고리를 통해)
+            const matchesGroup = task.categoryId ? (() => {
+              const category = categories.find(c => c.id === task.categoryId);
+              if (!category) return false;
+              const group = groups.find(g => g.id === category.groupId);
+              return group?.name.toLowerCase().includes(searchLower) || false;
+            })() : false;
+            
+            // 하나라도 매칭되면 true
+            if (!matchesTitle && !matchesDescription && !matchesAssignee && !matchesCategory && !matchesGroup) {
+              return false;
+            }
           }
           
           // Assignee filter

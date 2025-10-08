@@ -1,15 +1,48 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, X, Filter } from 'lucide-react';
 import { useStore } from '@/lib/store';
 
 export default function SearchBar() {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [isComposing, setIsComposing] = useState(false); // 한글 입력 중 감지
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   const { filter, setFilter, clearFilter, users, categories, currentUser } = useStore();
 
-  const handleSearchChange = (search: string) => {
-    setFilter({ search: search || undefined });
+  // 디바운스 검색 (0.3초)
+  useEffect(() => {
+    // 한글 입력(조합) 중이면 디바운스 적용 안함
+    if (isComposing) return;
+    
+    // 기존 타이머 취소
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // 새 타이머 설정
+    debounceTimerRef.current = setTimeout(() => {
+      setFilter({ search: searchInput.trim() || undefined });
+    }, 300); // 0.3초 디바운스
+    
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchInput, isComposing, setFilter]);
+  
+  // filter.search가 외부에서 초기화되면 input도 동기화
+  useEffect(() => {
+    if (!filter.search && searchInput) {
+      setSearchInput('');
+    }
+  }, [filter.search]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
   };
 
   const handleAssigneeFilter = (assigneeId: string) => {
@@ -28,6 +61,11 @@ export default function SearchBar() {
     filter[key as keyof typeof filter] !== undefined
   ).length;
 
+  const handleClearAll = () => {
+    setSearchInput('');
+    clearFilter();
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 mb-3">
       {/* Search input */}
@@ -35,8 +73,10 @@ export default function SearchBar() {
         <Search className="w-4 h-4 text-gray-400" />
         <input
           type="text"
-          value={filter.search || ''}
+          value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
           placeholder="업무, 담당자, 내용 검색..."
           className="flex-1 border-none outline-none placeholder-gray-400 bg-transparent text-sm py-1"
         />
@@ -55,10 +95,11 @@ export default function SearchBar() {
             </span>
           )}
         </button>
-        {activeFiltersCount > 0 && (
+        {(activeFiltersCount > 0 || searchInput) && (
           <button
-            onClick={clearFilter}
+            onClick={handleClearAll}
             className="p-1 text-gray-400 hover:text-gray-600"
+            title="검색 및 필터 초기화"
           >
             <X className="w-3.5 h-3.5" />
           </button>
