@@ -57,8 +57,9 @@ export default function SearchBar() {
     });
   };
 
+  // search는 제외하고 나머지 필터만 카운트
   const activeFiltersCount = Object.keys(filter).filter(key => 
-    filter[key as keyof typeof filter] !== undefined
+    key !== 'search' && filter[key as keyof typeof filter] !== undefined
   ).length;
 
   const handleClearAll = () => {

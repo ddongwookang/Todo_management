@@ -43,7 +43,6 @@ export default function Home() {
   
   // tasks를 구독하여 실시간 업데이트
   const tasks = useStore((state) => state.tasks);
-  const filter = useStore((state) => state.filter);
   
   // 모바일 감지 및 사이드바 자동 숨김
   useEffect(() => {
@@ -215,17 +214,6 @@ export default function Home() {
   };
 
   const getEmptyMessage = () => {
-    // 검색어가 있는 경우 우선 처리
-    if (filter.search) {
-      return `"${filter.search}" 검색 결과가 없습니다.`;
-    }
-    
-    // 필터가 있는 경우
-    if (filter.assigneeId || filter.categoryId) {
-      return '필터 조건에 맞는 업무가 없습니다.';
-    }
-    
-    // 기본 메시지
     switch (activeView) {
       case 'today':
         return '오늘 할 일이 없습니다.';
