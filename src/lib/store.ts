@@ -1042,16 +1042,28 @@ export const useStore = create<AppStore>()(
       // Firestore 동기화 초기화
       initFirestoreSync: (uid) => {
         console.log('🔄 [Store] initFirestoreSync 호출됨, uid:', uid);
+        const currentTasks = get().tasks;
+        console.log('📦 [Store] 현재 로컬 Task 개수:', currentTasks.length);
+        if (currentTasks.length > 0) {
+          console.log('📋 [Store] 로컬 Task 목록:', currentTasks.map(t => ({ id: t.id, title: t.title })));
+        }
+        
         set({ syncEnabled: true });
         console.log('✅ [Store] syncEnabled = true');
         
         // Firestore 실시간 구독
         const unsubscribe = subscribeToTasks(uid, (firestoreTasks) => {
           console.log('📥 [Store] Firestore에서 Task 수신:', firestoreTasks.length, '개');
+          if (firestoreTasks.length > 0) {
+            console.log('📋 [Store] Firestore Task 목록:', firestoreTasks.map(t => ({ id: t.id, title: t.title })));
+          } else {
+            console.warn('⚠️  [Store] Firestore에서 받은 Task가 0개입니다!');
+            console.log('💡 [Store] Firestore 경로 확인:', `users/${uid}/tasks`);
+          }
           
-          // 단순히 Firestore Task로 교체 (로컬 우선순위 없음)
+          // Firestore Task로 교체
           set({ tasks: firestoreTasks });
-          console.log('✅ [Store] Task 업데이트 완료');
+          console.log('✅ [Store] Task 업데이트 완료, 최종 개수:', firestoreTasks.length);
         });
         
         console.log('✅ [Store] Firestore 구독 설정 완료');
