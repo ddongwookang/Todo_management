@@ -10,8 +10,9 @@ import {
   where,
   Timestamp,
   writeBatch,
+  getDoc,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, app } from './firebase';
 import { Task } from '@/types';
 
 // Task를 Firestore 형식으로 변환
@@ -47,30 +48,58 @@ export const firestoreToTask = (id: string, data: any): Task => {
 
 // Firestore에 Task 추가
 export const addTaskToFirestore = async (uid: string, task: Task) => {
-  console.log('💾 [Firestore] addTaskToFirestore 호출됨:', {
-    uid,
-    taskId: task.id,
-    taskTitle: task.title,
-  });
+  // ===== 1. 쓰기 직전 정보 로깅 =====
+  console.info('📝 [write] ===== 태스크 생성 시작 =====');
+  console.info('[write] projectId =', app.options.projectId);
+  console.info('[write] uid =', uid);
+  console.info('[write] taskId =', task.id);
+  console.info('[write] path =', `users/${uid}/tasks/${task.id}`);
   
   // task.id를 Firestore 문서 ID로 사용
   const taskRef = doc(db, `users/${uid}/tasks`, task.id);
-  console.log('📍 [Firestore] 문서 경로:', `users/${uid}/tasks/${task.id}`);
   
   // id는 Firestore 문서 ID로 사용하므로 데이터에서 제거
   const { id, ...taskWithoutId } = task;
   const taskData = taskToFirestore(taskWithoutId as Task);
-  console.log('📦 [Firestore] 변환된 Task 데이터 준비 완료');
+  
+  console.info('[write] payload =', {
+    title: taskData.title,
+    userId: taskData.userId,
+    isDeleted: taskData.isDeleted,
+    completed: taskData.completed,
+    createdAt: taskData.createdAt,
+    updatedAt: taskData.updatedAt,
+  });
   
   try {
-    // setDoc으로 문서 생성 (id는 문서 경로로 사용됨)
+    // ===== 2. setDoc 실행 =====
     await setDoc(taskRef, taskData);
-    console.log('✅ [Firestore] setDoc 성공!');
+    console.info('✅ [write] setDoc 성공!');
+    
+    // ===== 3. 쓰기 직후 검증 =====
+    console.info('🔍 [verify] 문서 존재 여부 확인 중...');
+    const snap = await getDoc(taskRef);
+    console.info('[verify] exists =', snap.exists());
+    if (snap.exists()) {
+      const data = snap.data();
+      console.info('[verify] data =', {
+        title: data.title,
+        userId: data.userId,
+        isDeleted: data.isDeleted,
+        completed: data.completed,
+      });
+    } else {
+      console.error('❌ [verify] 문서가 존재하지 않습니다!');
+    }
+    
     return task.id;
   } catch (error: any) {
-    console.error('❌ [Firestore] setDoc 실패:', error);
-    console.error('  - 에러 코드:', error.code);
-    console.error('  - 에러 메시지:', error.message);
+    // ===== 4. 에러 로깅 =====
+    console.error('❌ [write:ERROR] ===== 쓰기 실패 =====');
+    console.error('[write:ERROR] code =', error.code);
+    console.error('[write:ERROR] message =', error.message);
+    console.error('[write:ERROR] name =', error.name);
+    console.error('[write:ERROR] full error =', error);
     throw error;
   }
 };

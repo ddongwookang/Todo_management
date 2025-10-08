@@ -17,5 +17,9 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-export { auth, db, googleProvider };
+// 프로젝트 ID 확인 (디버깅용)
+console.info('🔧 [Firebase] Project ID:', app.options.projectId);
+console.info('🔧 [Firebase] Auth Domain:', app.options.authDomain);
+
+export { auth, db, googleProvider, app };
 
