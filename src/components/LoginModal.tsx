@@ -55,6 +55,10 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         setError('현재 도메인이 Firebase에 등록되지 않았습니다. Firebase Console에서 도메인을 추가해주세요.');
       } else if (error.code === 'auth/cancelled-popup-request') {
         setError('로그인이 취소되었습니다.');
+      } else if (error.message?.includes('AADSTS50011') || error.message?.includes('redirect_uri')) {
+        setError('Azure Portal에서 Redirect URI를 등록해주세요: https://todo-management-948f5.firebaseapp.com/__/auth/handler');
+      } else if (error.message?.includes('AADSTS')) {
+        setError(`Azure 인증 오류: ${error.message?.split('Message:')[1]?.trim() || error.message}`);
       } else {
         setError(error.message || 'Microsoft 로그인에 실패했습니다. 다시 시도해주세요.');
       }
