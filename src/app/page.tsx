@@ -41,8 +41,9 @@ export default function Home() {
   // History 가져오기
   const history = useStore((state) => state.history);
   
-  // tasks를 구독하여 실시간 업데이트
+  // tasks와 filter를 구독하여 실시간 업데이트
   const tasks = useStore((state) => state.tasks);
+  const filter = useStore((state) => state.filter);
   
   // 모바일 감지 및 사이드바 자동 숨김
   useEffect(() => {
@@ -169,7 +170,7 @@ export default function Home() {
         }
         return [];
     }
-  }, [tasks, activeView, getFilteredTasks, currentUser, getUserTasks, getCompletedTasks, getDeletedTasks]);
+  }, [tasks, activeView, filter, getFilteredTasks, currentUser, getUserTasks, getCompletedTasks, getDeletedTasks]);
 
   const getCurrentTasks = () => currentTasks;
 
