@@ -162,12 +162,12 @@ export default function AccountButton({ onLogout, onLoginClick }: AccountButtonP
         </div>
       )}
 
-      {/* 이름 & 이메일 - 항상 표시 */}
-      <div className="flex-1 flex flex-col items-start min-w-0 overflow-hidden">
-        <span className="text-sm font-semibold text-gray-900 truncate w-full" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)' }}>
+      {/* 이름 & 이메일 - 항상 표시 (좌측 정렬) */}
+      <div className="flex-1 flex flex-col items-start min-w-0 overflow-hidden text-left">
+        <span className="text-sm font-semibold text-gray-900 truncate w-full text-left" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)' }}>
           {firebaseUser.displayName || '사용자'}
         </span>
-        <span className="text-xs text-gray-500 truncate w-full" style={{ fontSize: 'clamp(0.625rem, 1.5vw, 0.75rem)' }}>
+        <span className="text-xs text-gray-500 truncate w-full text-left" style={{ fontSize: 'clamp(0.625rem, 1.5vw, 0.75rem)' }}>
           {firebaseUser.email || ''}
         </span>
       </div>
